@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Milano Playground</title>
+    <meta
+      name="description"
+      content="Author and validate Milano vocabularies and documents against the live specification."
+    />
+  </head>
+  <body>
+    <header id="topbar">
+      <h1>Milano Playground</h1>
+      <span id="specs-status" class="status">loading spec…</span>
+      <span class="spacer"></span>
+      <button id="share-button" title="Copy a link that reproduces this playground state">Share</button>
+      <a href="https://get-milano.github.io/specs/" target="_blank" rel="noopener">Specs</a>
+      <a href="https://get-milano.github.io/sdk/" target="_blank" rel="noopener">SDK</a>
+    </header>
+    <main id="layout">
+      <section class="pane">
+        <div class="pane-title">Vocabulary</div>
+        <div id="vocabulary-editor" class="editor"></div>
+      </section>
+      <section class="pane">
+        <div class="pane-title">Document</div>
+        <div id="document-editor" class="editor"></div>
+      </section>
+      <section class="pane" id="result-pane">
+        <div class="pane-title">Build</div>
+        <div id="inputs">
+          <label>
+            Context values
+            <textarea id="context-input" rows="3" spellcheck="false"></textarea>
+          </label>
+          <label>
+            State values
+            <textarea id="state-input" rows="3" spellcheck="false"></textarea>
+          </label>
+          <label>
+            Unknown-type policy
+            <select id="policy-input">
+              <option value="skip">skip</option>
+              <option value="placeholder">placeholder</option>
+              <option value="fail">fail</option>
+            </select>
+          </label>
+        </div>
+        <div id="verdict"></div>
+        <div id="view-tabs">
+          <button data-view="preview" class="active">Preview</button>
+          <button data-view="tree">Tree</button>
+        </div>
+        <div id="preview"></div>
+        <pre id="result" hidden></pre>
+        <div id="toast" hidden></div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
