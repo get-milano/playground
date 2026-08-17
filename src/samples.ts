@@ -9,15 +9,16 @@ export interface Example {
   document: string;
   context: string;
   state: string;
+  actions: string;
 }
 
 const CONSENT_BANNER: Example = {
   key: "consent-banner",
   title: "Consent banner",
   vocabulary: `{
-  "milano": "0.1.0",
+  "milano": "1.0.0",
   "name": "starter",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "components": {
     "Row": {
       "children": true
@@ -25,13 +26,13 @@ const CONSENT_BANNER: Example = {
     "Text": {
       "properties": {
         "text": "string",
-        "role": "string?"
+        "role": {"enum": ["title", "subtitle", "body"], "optional": true}
       }
     },
     "Banner": {
       "properties": {
         "backgroundImageUrl": "string?",
-        "layout": "string?",
+        "layout": {"enum": ["overlay", "card", "strip"], "optional": true},
         "height": "int?",
         "showScrim": "bool?",
         "cornerRadius": "int?"
@@ -63,11 +64,15 @@ const CONSENT_BANNER: Example = {
         "url": "string"
       }
     },
-    "dismiss": {}
+    "dismiss": {
+      "parameters": {
+        "reason": "string?"
+      }
+    }
   }
 }`,
   document: `{
-  "version": "0.1.0",
+  "version": "1.0.0",
   "context": {
     "userName": "string",
     "url": "string"
@@ -159,7 +164,8 @@ const CONSENT_BANNER: Example = {
             "on": {
               "tap": [
                 {
-                  "action": "dismiss"
+                  "action": "dismiss",
+                  "reason": "closed-by-user"
                 }
               ]
             }
@@ -175,6 +181,16 @@ const CONSENT_BANNER: Example = {
 }`,
   state: `{
   "accepted": false
+}`,
+  actions: `{
+  "allow": ["openUrl", "dismiss"],
+  "declare": {
+    "dismiss": {
+      "parameters": {
+        "reason": "string"
+      }
+    }
+  }
 }`
 };
 

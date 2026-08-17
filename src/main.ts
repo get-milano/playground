@@ -25,6 +25,7 @@ const toastEl = $("toast");
 const contextInput = $<HTMLTextAreaElement>("context-input");
 const stateInput = $<HTMLTextAreaElement>("state-input");
 const policyInput = $<HTMLSelectElement>("policy-input");
+const actionsInput = $<HTMLTextAreaElement>("actions-input");
 
 const dark = window.matchMedia("(prefers-color-scheme: dark)");
 function applyTheme() {
@@ -93,13 +94,15 @@ async function init() {
     document: first.document,
     context: first.context,
     state: first.state,
-    policy: "skip"
+    actions: first.actions,
+    policy: "fail"
   };
 
   const vocabularyEditor = makeEditor("vocabulary-editor", initial.vocabulary, "vocabulary.json");
   const documentEditor = makeEditor("document-editor", initial.document, "document.json");
   contextInput.value = initial.context;
   stateInput.value = initial.state;
+  actionsInput.value = initial.actions ?? "";
   policyInput.value = initial.policy;
   applyTheme();
 
@@ -205,8 +208,21 @@ async function init() {
       context: panes.context,
       state: panes.state
     };
-    if (policyInput.value !== "skip") {
-      vector.config = { unknownTypePolicy: policyInput.value };
+    const config: Record<string, unknown> = {};
+    if (policyInput.value !== "fail") {
+      config.unknownTypePolicy = policyInput.value;
+    }
+    const actionsText = actionsInput.value.trim();
+    if (actionsText.length > 0) {
+      try {
+        config.actions = JSON.parse(actionsText);
+      } catch (error) {
+        setVerdict("error", `<b>Not valid JSON.</b> ${escapeHtml(`builder action grants: ${String((error as Error).message)}`)}`);
+        return;
+      }
+    }
+    if (Object.keys(config).length > 0) {
+      vector.config = config;
     }
 
     if (!engineReady) {
@@ -305,7 +321,7 @@ async function init() {
 
   vocabularyEditor.onDidChangeModelContent(scheduleUpdate);
   documentEditor.onDidChangeModelContent(scheduleUpdate);
-  for (const input of [contextInput, stateInput]) input.addEventListener("input", scheduleUpdate);
+  for (const input of [contextInput, stateInput, actionsInput]) input.addEventListener("input", scheduleUpdate);
   policyInput.addEventListener("change", scheduleUpdate);
 
   for (const tab of document.querySelectorAll<HTMLButtonElement>("#view-tabs button")) {
@@ -325,6 +341,7 @@ async function init() {
       document: documentEditor.getValue(),
       context: contextInput.value,
       state: stateInput.value,
+      actions: actionsInput.value,
       policy: policyInput.value
     });
     const url = `${location.origin}${location.pathname}#${fragment}`;

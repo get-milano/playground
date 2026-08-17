@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sync-specs": "mkdir -p public/specs-dev/schemas public/specs-dev/tools && cp ../specs/schemas/vocabulary.schema.json ../specs/schemas/document.schema.json public/specs-dev/schemas/ && cp ../specs/tools/reference_check.py public/specs-dev/tools/"
   },
   "dependencies": {
     "ajv": "^8.17.1",

@@ -147,8 +147,9 @@ def dispatch_event(payload_json):
 def run_playground(payload_json):
     data = json.loads(payload_json)
     vector = data["vector"]
-    policy = vector.get("config", {}).get("unknownTypePolicy", "skip")
-    gate = ReferenceGate(data["vocabulary"], policy)
+    config = vector.get("config", {})
+    policy = config.get("unknownTypePolicy", "fail")
+    gate = ReferenceGate(data["vocabulary"], policy, config.get("actions"))
     try:
         resolved, state = gate.build(vector)
         return json.dumps({
