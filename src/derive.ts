@@ -26,6 +26,13 @@ function literalSchema(descriptor: unknown): Json {
     return optional ? { anyOf: [base, { type: "null" }] } : base;
   }
   const d = descriptor as TypeDescriptor;
+  if (d && typeof d === "object" && "enum" in d) {
+    const members = [...(d.enum as string[])].sort();
+    const base: Json = { enum: members };
+    return (d as { optional?: boolean }).optional
+      ? { anyOf: [base, { type: "null" }] }
+      : base;
+  }
   if (d && typeof d === "object" && "array" in d) {
     return { type: "array", items: literalSchema(d.array) };
   }
