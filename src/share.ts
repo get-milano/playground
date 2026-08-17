@@ -6,6 +6,7 @@ export interface PlaygroundState {
   document: string;
   context: string;
   state: string;
+  actions?: string;
   policy: string;
 }
 
