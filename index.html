@@ -15,8 +15,8 @@
       <span id="specs-status" class="status">loading spec…</span>
       <span class="spacer"></span>
       <button id="share-button" title="Copy a link that reproduces this playground state">Share</button>
-      <a href="https://get-milano.github.io/specs/" target="_blank" rel="noopener">Specs</a>
-      <a href="https://get-milano.github.io/sdk/" target="_blank" rel="noopener">SDK</a>
+      <a href="https://get-milano.dev/specs/" target="_blank" rel="noopener">Specs</a>
+      <a href="https://get-milano.dev/sdk/" target="_blank" rel="noopener">SDK</a>
     </header>
     <main id="layout">
       <section class="pane">
@@ -39,11 +39,15 @@
             <textarea id="state-input" rows="3" spellcheck="false"></textarea>
           </label>
           <label>
+            Builder action grants (allow / declare)
+            <textarea id="actions-input" rows="4" spellcheck="false"></textarea>
+          </label>
+          <label>
             Unknown-type policy
             <select id="policy-input">
+              <option value="fail">fail</option>
               <option value="skip">skip</option>
               <option value="placeholder">placeholder</option>
-              <option value="fail">fail</option>
             </select>
           </label>
         </div>

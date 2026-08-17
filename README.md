@@ -1,11 +1,12 @@
 # Milano Playground
 
-An in-browser authoring tool for [Milano](https://github.com/get-milano/sdk) vocabularies and documents, hosted at [get-milano.github.io/playground](https://get-milano.github.io/playground/).
+An in-browser authoring tool for [Milano](https://github.com/get-milano/sdk) vocabularies and documents, hosted at [get-milano.dev/playground](https://get-milano.dev/playground/).
 
 - **Live validation** against the official schemas from [get-milano/specs](https://github.com/get-milano/specs), fetched at runtime so the playground always matches current `main`.
 - **Semantic verdicts** from the specs repo's reference checker (`tools/reference_check.py`), executed in the browser via Pyodide: gate errors with their typed detail, or the resolved tree with evaluated expressions and reported occurrences.
 - **Vocabulary-aware autocomplete**: the document editor derives a schema from the vocabulary pane live, completing your own component types, properties, and events.
 - **Non-normative preview**: the resolved tree rendered with a tiny web design system, exactly the way a real consumer bridges Milano to its own components. Sample-vocabulary types render as interactive controls: events dispatch the document's built-in actions through the reference evaluator and the build re-runs, while custom actions are reported to the console as host-bound data. Unknown types render as wireframe boxes, placeholders as hatched boxes.
+- **Builder action grants**: an input models the surface's capability set, with an allowlist over the vocabulary's actions and per-surface declarations and signature overrides; ungranted or mis-parameterized bindings fail with the gate's typed errors.
 - **Shareable links**: the entire playground state is compressed into the URL fragment. No backend, nothing stored.
 
 ## Development
