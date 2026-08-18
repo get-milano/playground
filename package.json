@@ -7,13 +7,24 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "sync-specs": "mkdir -p public/specs-dev/schemas public/specs-dev/tools && cp ../specs/schemas/vocabulary.schema.json ../specs/schemas/document.schema.json public/specs-dev/schemas/ && cp ../specs/tools/reference_check.py public/specs-dev/tools/"
+    "sync-specs": "mkdir -p public/specs-dev/schemas && cp ../specs/schemas/vocabulary.schema.json ../specs/schemas/document.schema.json public/specs-dev/schemas/",
+    "smoke": "vite build --ssr scripts/smoke.tsx --outDir .smoke --logLevel warn && node .smoke/smoke.js"
   },
   "dependencies": {
-    "ajv": "^8.17.1",
-    "monaco-editor": "^0.52.2"
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@get-milano/core": "^1.1.2",
+    "@get-milano/react": "^1.1.2",
+    "@mui/material": "^9.3.1",
+    "monaco-editor": "^0.52.2",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^5.2.0",
+    "jsdom": "^30.0.1",
     "typescript": "^5.6.3",
     "vite": "^6.0.3"
   }
