@@ -1,5 +1,6 @@
-// Runtime binding to the specs repository: the playground always validates
-// against current main, so it can never drift from the published spec.
+// The JSON Schemas, used for editor assistance only: autocomplete and
+// inline hints while typing. Validation is the engine's job now, so a
+// failed fetch costs autocomplete and nothing else.
 //
 // Local development is the one exception: the sibling specs checkout may be
 // ahead of published main, and validating against stale specs makes the dev
@@ -19,7 +20,6 @@ let announcedDevSpecs = false;
 export interface SpecBundle {
   vocabularySchema: Record<string, unknown>;
   documentSchema: Record<string, unknown>;
-  referenceCheckerSource: string;
 }
 
 async function load(path: string): Promise<Response> {
@@ -49,16 +49,10 @@ async function fetchJson(path: string): Promise<Record<string, unknown>> {
   return (await load(path)).json();
 }
 
-async function fetchText(path: string): Promise<string> {
-  return (await load(path)).text();
-}
-
 export async function loadSpecs(): Promise<SpecBundle> {
-  const [vocabularySchema, documentSchema, referenceCheckerSource] =
-    await Promise.all([
-      fetchJson("schemas/vocabulary.schema.json"),
-      fetchJson("schemas/document.schema.json"),
-      fetchText("tools/reference_check.py")
-    ]);
-  return { vocabularySchema, documentSchema, referenceCheckerSource };
+  const [vocabularySchema, documentSchema] = await Promise.all([
+    fetchJson("schemas/vocabulary.schema.json"),
+    fetchJson("schemas/document.schema.json")
+  ]);
+  return { vocabularySchema, documentSchema };
 }
