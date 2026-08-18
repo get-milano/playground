@@ -194,4 +194,139 @@ const CONSENT_BANNER: Example = {
 }`
 };
 
-export const EXAMPLES: Example[] = [CONSENT_BANNER];
+// A form with a typed completion result: the reason the playground can
+// settle a dispatched action. Submitting hands the host a value, and the
+// document shows it in the thank-you line without any host UI code.
+const CONTACT_FORM: Example = {
+  key: "contact-form",
+  title: "Form with a completion result",
+  vocabulary: `{
+  "milano": "1.0.0",
+  "name": "starter",
+  "version": "1.0.0",
+  "components": {
+    "Column": {"children": true},
+    "Text": {
+      "properties": {
+        "text": "string",
+        "role": {"enum": ["title", "subtitle", "body"], "optional": true},
+        "visible": "bool?"
+      }
+    },
+    "TextField": {
+      "properties": {"label": "string", "value": "string", "error": "string?"},
+      "events": {"change": "string"}
+    },
+    "Button": {
+      "properties": {"label": "string", "enabled": "bool"},
+      "events": {"tap": null}
+    }
+  },
+  "actions": {
+    "submitContact": {
+      "parameters": {"email": "string"},
+      "result": "string"
+    }
+  }
+}`,
+  document: `{
+  "version": "1.0.0",
+  "state": {"email": "string", "confirmation": "string"},
+  "root": {
+    "type": "Column",
+    "children": [
+      {"type": "Text", "properties": {"text": "Stay in touch", "role": "title"}},
+      {
+        "type": "TextField",
+        "id": "email",
+        "properties": {
+          "label": "Email",
+          "value": {"$expr": "state.email"},
+          "error": {"$expr": "if(state.email == '' || contains(state.email, '@'), null, 'That does not look like an email')"}
+        },
+        "on": {"change": [{"action": "$set", "key": "email", "value": {"$expr": "event"}}]}
+      },
+      {
+        "type": "Button",
+        "id": "submit",
+        "properties": {
+          "label": "Send",
+          "enabled": {"$expr": "contains(state.email, '@')"}
+        },
+        "on": {
+          "tap": [{
+            "action": "submitContact",
+            "email": {"$expr": "state.email"},
+            "onSuccess": [{"action": "$set", "key": "confirmation", "value": {"$expr": "result"}}],
+            "onFailure": [{"action": "$set", "key": "confirmation", "value": "Could not send it"}]
+          }]
+        }
+      },
+      {
+        "type": "Text",
+        "properties": {
+          "text": {"$expr": "concat('Thanks. Your reference is ', state.confirmation)"},
+          "role": "subtitle",
+          "visible": {"$expr": "state.confirmation != ''"}
+        }
+      }
+    ]
+  }
+}`,
+  context: `{}`,
+  state: `{
+  "email": "",
+  "confirmation": ""
+}`,
+  actions: `{}`
+};
+
+// Everything the guardrails report, in one document: an event with no
+// binding, a property the component never declared, and arithmetic that
+// divides by zero. It builds, and the Occurrences tab fills up.
+const GUARDRAILS: Example = {
+  key: "guardrails",
+  title: "Guardrails and occurrences",
+  vocabulary: `{
+  "milano": "1.0.0",
+  "name": "starter",
+  "version": "1.0.0",
+  "components": {
+    "Column": {"children": true},
+    "Text": {"properties": {"text": "string"}},
+    "Button": {
+      "properties": {"label": "string"},
+      "events": {"tap": null}
+    }
+  },
+  "actions": {}
+}`,
+  document: `{
+  "version": "1.0.0",
+  "state": {"divisor": "int"},
+  "root": {
+    "type": "Column",
+    "children": [
+      {
+        "type": "Text",
+        "properties": {
+          "text": {"$expr": "concat('100 / divisor = ', str(100 / state.divisor))"},
+          "colour": "undeclared properties are reported, not fatal"
+        }
+      },
+      {
+        "type": "Button",
+        "id": "unbound",
+        "properties": {"label": "Tap me: nothing is bound"}
+      }
+    ]
+  }
+}`,
+  context: `{}`,
+  state: `{
+  "divisor": 0
+}`,
+  actions: `{}`
+};
+
+export const EXAMPLES: Example[] = [CONSENT_BANNER, CONTACT_FORM, GUARDRAILS];
