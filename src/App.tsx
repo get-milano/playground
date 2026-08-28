@@ -10,8 +10,6 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import CssBaseline from "@mui/material/CssBaseline";
-import Snackbar from "@mui/material/Snackbar";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
@@ -67,11 +65,32 @@ export function App() {
     [],
   );
 
+  // The bundled examples: picking one replaces every pane, the way a
+  // shared link does. Editing afterwards keeps the selection, since the
+  // panes still descend from it; a shared link is nobody's example and
+  // shows as its own entry.
+  const [example, setExample] = useState(first.key);
+  const loadExample = useCallback((key: string) => {
+    const chosen = EXAMPLES.find((entry) => entry.key === key);
+    if (chosen === undefined) return;
+    setExample(key);
+    setInputs({
+      vocabulary: chosen.vocabulary,
+      document: chosen.document,
+      context: chosen.context,
+      state: chosen.state,
+      actions: chosen.actions,
+      policy: "fail",
+    });
+  }, []);
+
   // A shared link replaces every pane at once.
   useEffect(() => {
     if (location.hash.length <= 1) return;
     void decodeState(location.hash.slice(1)).then((restored) => {
-      if (restored !== null) setInputs({ ...restored, actions: restored.actions ?? "" });
+      if (restored === null) return;
+      setExample("");
+      setInputs({ ...restored, actions: restored.actions ?? "" });
     });
   }, []);
 
@@ -154,6 +173,22 @@ export function App() {
         >
           <Typography variant="h6">Milano Playground</Typography>
           <Chip size="small" variant="outlined" label={status} />
+          <TextField
+            select
+            size="small"
+            label="Example"
+            value={example}
+            onChange={(event) => loadExample(event.target.value)}
+            slotProps={{ select: { native: true } }}
+            sx={{ minWidth: 240 }}
+          >
+            {example === "" ? <option value="">Shared link</option> : null}
+            {EXAMPLES.map((entry) => (
+              <option key={entry.key} value={entry.key}>
+                {entry.title}
+              </option>
+            ))}
+          </TextField>
           <Box sx={{ flexGrow: 1 }} />
           <Button size="small" onClick={() => void share()}>
             Share
@@ -277,7 +312,7 @@ export function App() {
             <Box sx={{ flexGrow: 1, overflow: "auto", p: 1.5 }}>
               {view === null ? null : (
                 <ErrorBoundary resetKey={view}>
-                  <Panels tab={tab} view={view} registry={registry} streamed={streamed} settle={settle} />
+                  <Panels tab={tab} view={view} registry={registry} streamed={streamed} />
                 </ErrorBoundary>
               )}
             </Box>
@@ -297,10 +332,9 @@ interface PanelsProps {
   readonly view: MilanoView;
   readonly registry: Parameters<typeof MilanoRenderedView>[0]["registry"] | null;
   readonly streamed: Streamed;
-  readonly settle: (pending: PendingAction, outcome: "success" | "failure", value: string) => void;
 }
 
-function Panels({ tab, view, registry, streamed, settle }: PanelsProps) {
+function Panels({ tab, view, registry, streamed }: PanelsProps) {
   if (tab === "preview") {
     return registry === null ? null : <MilanoRenderedView view={view} registry={registry} />;
   }
@@ -365,8 +399,19 @@ function Log({ rows, empty }: { readonly rows: string[]; readonly empty: string 
   );
 }
 
+/**
+ * The kind, then the detail an occurrence carries since SDK 1.3.0: the
+ * node, what it is about (an event, action, property, type, or key), and
+ * the gate's expected/found terms when a rejection has them.
+ */
 function describeOccurrence(occurrence: MilanoOccurrence): string {
-  return `${occurrence.kind}${occurrence.node === null ? "" : ` · ${occurrence.node}`}`;
+  const parts: string[] = [occurrence.kind];
+  if (occurrence.node !== null) parts.push(occurrence.node);
+  if (occurrence.name) parts.push(occurrence.name);
+  if (occurrence.expected || occurrence.found) {
+    parts.push(`expected ${occurrence.expected ?? "-"}, found ${occurrence.found ?? "-"}`);
+  }
+  return parts.join(" · ");
 }
 
 function describeInteraction(interaction: MilanoUserInteraction): string {
