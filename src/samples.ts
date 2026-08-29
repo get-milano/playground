@@ -329,4 +329,92 @@ const GUARDRAILS: Example = {
   actions: `{}`
 };
 
-export const EXAMPLES: Example[] = [CONSENT_BANNER, CONTACT_FORM, GUARDRAILS];
+// A list from state: one `$repeat` over an array of records. The document
+// is the template; the rows are data the State pane supplies. Each row's
+// button dispatches a custom action carrying the element it was bound to,
+// and the Clear button sets the array empty, so the list re-materializes.
+const REPEAT_LIST: Example = {
+  key: "repeat-list",
+  title: "A list from state",
+  vocabulary: `{
+  "milano": "2.0.0",
+  "name": "starter",
+  "version": "1.0.0",
+  "components": {
+    "Column": {"children": true},
+    "Row": {"children": true},
+    "Text": {"properties": {"text": "string"}},
+    "Button": {
+      "properties": {"label": "string"},
+      "events": {"tap": null}
+    }
+  },
+  "actions": {
+    "select": {"parameters": {"name": "string", "position": "int"}}
+  }
+}`,
+  document: `{
+  "version": "2.0.0",
+  "state": {
+    "rows": {"array": {"record": {"name": "string", "price": "double"}}}
+  },
+  "root": {
+    "type": "Column",
+    "children": [
+      {
+        "type": "Text",
+        "properties": {"text": {"$expr": "concat(str(length(state.rows)), ' rows')"}}
+      },
+      {
+        "type": "$repeat",
+        "id": "rows",
+        "items": {"$expr": "state.rows"},
+        "as": "row",
+        "children": [
+          {
+            "type": "Row",
+            "id": "line",
+            "children": [
+              {
+                "type": "Text",
+                "properties": {"text": {"$expr": "concat(str(row_index + 1), '. ', row.name)"}}
+              },
+              {
+                "type": "Text",
+                "properties": {"text": {"$expr": "concat(str(row.price), ' EUR')"}}
+              },
+              {
+                "type": "Button",
+                "id": "pick",
+                "properties": {"label": "Select"},
+                "on": {
+                  "tap": [
+                    {"action": "select", "name": {"$expr": "row.name"}, "position": {"$expr": "row_index"}}
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "Button",
+        "id": "clear",
+        "properties": {"label": "Clear the list"},
+        "on": {"tap": [{"action": "$set", "key": "rows", "value": []}]}
+      }
+    ]
+  }
+}`,
+  context: `{}`,
+  state: `{
+  "rows": [
+    {"name": "Espresso", "price": 1.5},
+    {"name": "Cappuccino", "price": 2.8},
+    {"name": "Cornetto", "price": 1.2}
+  ]
+}`,
+  actions: `{}`
+};
+
+export const EXAMPLES: Example[] = [CONSENT_BANNER, CONTACT_FORM, GUARDRAILS, REPEAT_LIST];
