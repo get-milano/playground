@@ -11,7 +11,7 @@ It runs the **published engine**, not a simulation: `@get-milano/core` and `@get
 - **Material UI as the design system.** Every pixel in the preview belongs to MUI, wired to Milano by a renderer per component type in `src/renderers.tsx`. Components the playground has no Material mapping for get a generic renderer that shows the resolved values and a button per declared event, so any vocabulary is explorable.
 - **Vocabulary-aware autocomplete**: the document editor derives a schema from the vocabulary pane live, completing your own component types, properties, and events. Editor assistance only, fetched best-effort from [get-milano/specs](https://github.com/get-milano/specs); the engine is what decides validity.
 - **Builder action grants**: an input models the surface's capability set, with an allowlist over the vocabulary's actions and per-surface declarations and signature overrides; ungranted or mis-parameterized bindings fail with the gate's typed errors.
-- **Bundled examples**: a consent banner, a form with a typed completion result, and a guardrails tour that fills the Occurrences tab; pick one from the top bar and every pane follows.
+- **Bundled examples**: a consent banner, a form with a typed completion result, a guardrails tour that fills the Occurrences tab, and a list repeated from state with `$repeat`; pick one from the top bar and every pane follows.
 - **Shareable links**: the entire playground state is compressed into the URL fragment. No backend, nothing stored.
 
 ## Development

@@ -121,10 +121,23 @@ export function deriveDocumentSchema(
     };
   });
 
+  // The $repeat construct (contract 2.0) belongs to every vocabulary: its
+  // own keys are required, a component's keys are not its to carry.
+  perComponent.push({
+    if: { properties: { type: { const: "$repeat" } } },
+    then: {
+      required: ["items", "as", "children"],
+      properties: {
+        properties: { type: "object", maxProperties: 0 },
+        on: { type: "object", maxProperties: 0 }
+      }
+    }
+  });
+
   const defs = derived.$defs as Json;
   const node = defs.node as Json;
   const nodeProperties = node.properties as Json;
-  nodeProperties.type = { enum: componentNames };
+  nodeProperties.type = { enum: [...componentNames, "$repeat"] };
   node.allOf = perComponent;
   return derived;
 }
