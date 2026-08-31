@@ -12,6 +12,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import { build, type PendingAction } from "../src/engine";
 import { EXAMPLES } from "../src/samples";
+import { expressionSuggestions } from "../src/suggest";
 
 async function main(): Promise<void> {
   let failures = 0;
@@ -55,6 +56,8 @@ async function main(): Promise<void> {
     }
   }
 
+  failures += suggestionCheck();
+
   // Server rendering never mounts, so it cannot see what breaks on mount:
   // transitions, effects, refs. This mounts the interactive pieces in a
   // DOM, which is where a Snackbar dereferencing a null ref shows up.
@@ -65,6 +68,49 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   console.log(`${EXAMPLES.length} examples built and rendered, and mounted in a DOM`);
+}
+
+/**
+ * The editor's expression completion: it must fire inside a `$expr`
+ * string and nowhere else, and it must know the vocabulary's own
+ * functions, not only the contract's.
+ */
+function suggestionCheck(): number {
+  const example = EXAMPLES.find((entry) => entry.key === "shopping-list");
+  if (example === undefined) {
+    console.error("FAIL suggest: the shopping-list example is missing");
+    return 1;
+  }
+  const problems: string[] = [];
+
+  const outside = expressionSuggestions('  "label": "Add', example.document, example.vocabulary);
+  if (outside !== null) problems.push("offered suggestions outside an expression");
+
+  const inside = expressionSuggestions(
+    '  "text": { "$expr": "$con',
+    example.document,
+    example.vocabulary,
+  );
+  if (inside === null) {
+    problems.push("offered nothing inside an expression");
+  } else {
+    if (inside.typed !== "$con") problems.push(`replaced ${inside.typed} instead of $con`);
+    const labels = inside.suggestions.map((suggestion) => suggestion.label);
+    for (const wanted of ["$concat", "$round", "formatMoney", "plural", "state.items", "event"]) {
+      if (!labels.includes(wanted)) problems.push(`did not offer ${wanted}`);
+    }
+    // A host function the vocabulary declares comes before the contract's.
+    if (labels.indexOf("formatMoney") > labels.indexOf("$concat")) {
+      problems.push("ordered the contract's functions before the vocabulary's");
+    }
+  }
+
+  if (problems.length > 0) {
+    for (const problem of problems) console.error(`FAIL suggest: ${problem}`);
+    return problems.length;
+  }
+  console.log("ok   suggest: completion fires inside expressions, with the vocabulary's functions");
+  return 0;
 }
 
 async function mountCheck(): Promise<number> {
@@ -101,8 +147,15 @@ async function mountCheck(): Promise<number> {
 
   const pending: PendingAction = {
     id: 1,
-    action: { name: "openUrl", parameters: {}, viewIdentity: "playground" },
+    action: {
+      name: "openUrl",
+      parameters: {},
+      viewIdentity: "playground",
+      dispatch: 0,
+      dispatchId: "smoke#0",
+    },
     resultType: "string",
+    failureType: null,
     settle: () => {},
   };
 

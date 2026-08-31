@@ -61,6 +61,12 @@ function PendingActionCard({
   const parameters = Object.entries(pending.action.parameters)
     .map(([name, parameter]) => `${name}: ${String(parameter)}`)
     .join(", ");
+  // One field serves both outcomes: what it holds becomes the result on
+  // Succeed and the failure payload on Fail, each against its own type.
+  const expected = [
+    pending.resultType === null ? null : `result: ${pending.resultType}`,
+    pending.failureType === null ? null : `failure: ${pending.failureType}`,
+  ].filter((part) => part !== null);
   return (
     // A Paper, not a filled Alert: this thing holds a text field and two
     // buttons, and they need ordinary surface contrast to stay legible.
@@ -73,13 +79,14 @@ function PendingActionCard({
       </Stack>
       <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "monospace" }}>
         {parameters.length === 0 ? "no parameters" : parameters}
+        {` · dispatch ${pending.action.dispatch} (${pending.action.dispatchId})`}
       </Typography>
       <Stack direction="row" spacing={1} sx={{ mt: 1.5, alignItems: "center" }}>
-        {pending.resultType === null ? null : (
+        {expected.length === 0 ? null : (
           <TextField
             size="small"
             fullWidth
-            label={`result (${pending.resultType})`}
+            label={expected.join(" · ")}
             value={value}
             onChange={(event) => setValue(event.target.value)}
           />
