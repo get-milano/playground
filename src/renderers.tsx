@@ -50,16 +50,27 @@ function member<T extends string>(node: MilanoNode, name: string, fallback: T): 
 }
 
 const Column: MilanoRenderer = ({ node }) => (
-  <Stack spacing={1.5} sx={{ p: 2 }}>
+  <Stack spacing={`${integer(node, "spacing", 12)}px`} sx={{ p: 2 }}>
     {node.children}
   </Stack>
 );
+
+const JUSTIFY: Record<string, string> = {
+  start: "flex-start",
+  center: "center",
+  end: "flex-end",
+  spaceBetween: "space-between",
+};
 
 const Row: MilanoRenderer = ({ node }) => (
   <Stack
     direction="row"
     spacing={`${integer(node, "spacing", 8)}px`}
-    sx={{ alignItems: "center", flexWrap: "wrap" }}
+    sx={{
+      alignItems: "center",
+      flexWrap: "wrap",
+      justifyContent: JUSTIFY[member(node, "justify", "start")] ?? "flex-start",
+    }}
   >
     {node.children}
   </Stack>
@@ -67,12 +78,14 @@ const Row: MilanoRenderer = ({ node }) => (
 
 const Text: MilanoRenderer = ({ node }) => {
   if (!flag(node, "visible", true)) return null;
-  const role = member<"title" | "subtitle" | "body">(node, "role", "body");
+  const role = member<"title" | "subtitle" | "body" | "caption">(node, "role", "body");
   const liveRegion = node.property("liveRegion").stringValue;
   return (
     <Typography
-      variant={role === "title" ? "h6" : role === "subtitle" ? "subtitle2" : "body2"}
-      color={role === "subtitle" ? "text.secondary" : "text.primary"}
+      variant={
+        role === "title" ? "h6" : role === "subtitle" ? "subtitle2" : role === "caption" ? "caption" : "body2"
+      }
+      color={role === "subtitle" || role === "caption" ? "text.secondary" : "text.primary"}
       aria-live={liveRegion === null ? undefined : (liveRegion as "polite" | "assertive")}
       component={role === "title" ? "h2" : "p"}
     >
@@ -81,11 +94,17 @@ const Text: MilanoRenderer = ({ node }) => {
   );
 };
 
+const BUTTON_VARIANTS = {
+  primary: "contained",
+  secondary: "outlined",
+  tertiary: "text",
+} as const;
+
 const ButtonRenderer: MilanoRenderer = ({ node }) => {
   if (!flag(node, "visible", true)) return null;
   return (
     <Button
-      variant="contained"
+      variant={BUTTON_VARIANTS[member<keyof typeof BUTTON_VARIANTS>(node, "role", "primary")] ?? "contained"}
       size="small"
       disabled={!flag(node, "enabled", true)}
       onClick={() => node.emit("tap")}
@@ -104,6 +123,7 @@ const TextFieldRenderer: MilanoRenderer = ({ node }) => {
       fullWidth
       label={text(node, "label")}
       value={text(node, "value")}
+      placeholder={optionalText(node, "placeholder")}
       required={flag(node, "required", false)}
       error={error !== undefined}
       helperText={error}
@@ -265,9 +285,23 @@ const ImageRenderer: MilanoRenderer = ({ node }) => {
   );
 };
 
-const Badge: MilanoRenderer = ({ node }) => (
-  <Chip size="small" label={text(node, "text")} />
-);
+const BADGE_TONES = {
+  info: "info",
+  success: "success",
+  warning: "warning",
+  danger: "error",
+} as const;
+
+const Badge: MilanoRenderer = ({ node }) => {
+  const tone = node.property("tone").stringValue as keyof typeof BADGE_TONES | null;
+  return (
+    <Chip
+      size="small"
+      label={text(node, "text")}
+      color={tone === null ? "default" : (BADGE_TONES[tone] ?? "default")}
+    />
+  );
+};
 
 /**
  * Unknown types under the `placeholder` policy arrive as data, never as

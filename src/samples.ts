@@ -5,6 +5,12 @@
 export interface Example {
   key: string;
   title: string;
+  /** The dropdown section the example sits under. */
+  group: string;
+  /** One or two sentences: what it shows and what to try. */
+  description: string;
+  /** Where to read about the mechanic this example demonstrates. */
+  docsUrl: string;
   vocabulary: string;
   document: string;
   context: string;
@@ -15,6 +21,10 @@ export interface Example {
 const CONSENT_BANNER: Example = {
   key: "consent-banner",
   title: "Consent banner",
+  group: "Start here",
+  description:
+    "A consent banner over an image: an expression greeting from context, a checkbox gating the Open button, and two actions side by side. Tick the box and tap Open to see a dispatched action arrive.",
+  docsUrl: "https://get-milano.dev/specs/examples.html#the-banner",
   vocabulary: `{
   "milano": "1.0.0",
   "name": "starter",
@@ -56,6 +66,15 @@ const CONSENT_BANNER: Example = {
       "events": {
         "change": "bool"
       }
+    },
+    "Image": {
+      "properties": {
+        "url": "string",
+        "width": "int?",
+        "height": "int?",
+        "cornerRadius": "int?",
+        "contentDescription": "string?"
+      }
     }
   },
   "actions": {
@@ -84,13 +103,24 @@ const CONSENT_BANNER: Example = {
     "type": "Banner",
     "id": "banner",
     "properties": {
-      "backgroundImageUrl": "https://picsum.photos/seed/milano/900/500",
+      "backgroundImageUrl": "https://images.unsplash.com/photo-1520440229-6469a149ac59?w=900&q=60",
       "layout": "card",
       "height": 280,
       "showScrim": true,
       "cornerRadius": 16
     },
     "children": [
+      {
+        "type": "Image",
+        "id": "artwork",
+        "properties": {
+          "url": "https://images.unsplash.com/photo-1447933601403-0c6688de566e?w=200&q=60",
+          "width": 56,
+          "height": 56,
+          "cornerRadius": 12,
+          "contentDescription": "Summer offer artwork"
+        }
+      },
       {
         "type": "Text",
         "id": "title",
@@ -203,6 +233,10 @@ const CONSENT_BANNER: Example = {
 const CONTACT_FORM: Example = {
   key: "contact-form",
   title: "Form with a result and a failure payload",
+  group: "State and actions",
+  description:
+    "A form with typed completions: Succeed hands the document a confirmation it shows, and Fail with one of the declared reasons becomes the message, with no host UI code. Fail with a value outside the enum and the engine reports an invalid completion instead.",
+  docsUrl: "https://get-milano.dev/sdk/documents#failure-payloads",
   vocabulary: `{
   "milano": "2.1.0",
   "name": "starter",
@@ -309,6 +343,10 @@ const CONTACT_FORM: Example = {
 const GUARDRAILS: Example = {
   key: "guardrails",
   title: "Guardrails and occurrences",
+  group: "Guardrails",
+  description:
+    "Everything the guardrails report in one document: an event with no binding, a property the component never declared, and a division by zero. It builds, and the Occurrences tab fills up.",
+  docsUrl: "https://get-milano.dev/sdk/guardrails",
   vocabulary: `{
   "milano": "1.0.0",
   "name": "starter",
@@ -362,16 +400,28 @@ const GUARDRAILS: Example = {
 const REPEAT_LIST: Example = {
   key: "repeat-list",
   title: "A keyed list from state",
+  group: "Constructs and strings",
+  description:
+    "A keyed $repeat over rows from state: the document is the template, the rows are data. Each button dispatches the element it was bound to; give two rows the same name and the gate refuses the build, since keys are distinct by rule.",
+  docsUrl: "https://get-milano.dev/sdk/documents#lists-with-repeat",
   vocabulary: `{
   "milano": "2.1.0",
   "name": "starter",
   "version": "1.0.0",
   "components": {
     "Column": {"children": true},
-    "Row": {"children": true},
-    "Text": {"properties": {"text": "string"}},
+    "Row": {
+      "children": true,
+      "properties": {"justify": {"enum": ["start", "center", "end", "spaceBetween"], "optional": true}}
+    },
+    "Text": {
+      "properties": {
+        "text": "string",
+        "role": {"enum": ["title", "subtitle", "body", "caption"], "optional": true}
+      }
+    },
     "Button": {
-      "properties": {"label": "string"},
+      "properties": {"label": "string", "role": {"enum": ["primary", "secondary", "tertiary"], "optional": true}},
       "events": {"tap": null}
     }
   },
@@ -387,9 +437,10 @@ const REPEAT_LIST: Example = {
   "root": {
     "type": "Column",
     "children": [
+      {"type": "Text", "properties": {"text": "Menu", "role": "title"}},
       {
         "type": "Text",
-        "properties": {"text": {"$expr": "$concat($str($length(state.rows)), ' rows')"}}
+        "properties": {"text": {"$expr": "$concat($str($length(state.rows)), ' rows')"}, "role": "subtitle"}
       },
       {
         "type": "$repeat",
@@ -401,6 +452,7 @@ const REPEAT_LIST: Example = {
           {
             "type": "Row",
             "id": "line",
+            "properties": {"justify": "spaceBetween"},
             "children": [
               {
                 "type": "Text",
@@ -408,12 +460,12 @@ const REPEAT_LIST: Example = {
               },
               {
                 "type": "Text",
-                "properties": {"text": {"$expr": "$concat($str(row.price), ' EUR')"}}
+                "properties": {"text": {"$expr": "$concat($str(row.price), ' EUR')"}, "role": "caption"}
               },
               {
                 "type": "Button",
                 "id": "pick",
-                "properties": {"label": "Select"},
+                "properties": {"label": "Select", "role": "secondary"},
                 "on": {
                   "tap": [
                     {"action": "select", "name": {"$expr": "row.name"}, "position": {"$expr": "row_index"}}
@@ -427,7 +479,7 @@ const REPEAT_LIST: Example = {
       {
         "type": "Button",
         "id": "clear",
-        "properties": {"label": "Clear the list"},
+        "properties": {"label": "Clear the list", "role": "tertiary"},
         "on": {"tap": [{"action": "$set", "key": "rows", "value": []}]}
       }
     ]
@@ -452,6 +504,10 @@ const REPEAT_LIST: Example = {
 const LIFECYCLE_CALCULATOR: Example = {
   key: "lifecycle-calculator",
   title: "Lifecycle and numeric functions",
+  group: "State and actions",
+  description:
+    "Lifecycle bindings and the numeric functions in a small tip calculator: the document's own on section dispatches track on appear and disappear, and round, min, and max keep the arithmetic in range with no host logic.",
+  docsUrl: "https://get-milano.dev/sdk/documents#lifecycle",
   vocabulary: `{
   "milano": "2.1.0",
   "name": "starter",
@@ -466,7 +522,7 @@ const LIFECYCLE_CALCULATOR: Example = {
       }
     },
     "Button": {
-      "properties": {"label": "string", "enabled": "bool"},
+      "properties": {"label": "string", "enabled": "bool", "role": {"enum": ["primary", "secondary", "tertiary"], "optional": true}},
       "events": {"tap": null}
     }
   },
@@ -495,13 +551,13 @@ const LIFECYCLE_CALCULATOR: Example = {
           {
             "type": "Button",
             "id": "less",
-            "properties": {"label": "- 10", "enabled": {"$expr": "state.bill > 0.0"}},
+            "properties": {"label": "- 10", "role": "secondary", "enabled": {"$expr": "state.bill > 0.0"}},
             "on": {"tap": [{"action": "$set", "key": "bill", "value": {"$expr": "$max(state.bill - 10.0, 0.0)"}}]}
           },
           {
             "type": "Button",
             "id": "more",
-            "properties": {"label": "+ 10", "enabled": {"$expr": "state.bill < 500.0"}},
+            "properties": {"label": "+ 10", "role": "secondary", "enabled": {"$expr": "state.bill < 500.0"}},
             "on": {"tap": [{"action": "$set", "key": "bill", "value": {"$expr": "$min(state.bill + 10.0, 500.0)"}}]}
           }
         ]
@@ -512,19 +568,19 @@ const LIFECYCLE_CALCULATOR: Example = {
           {
             "type": "Button",
             "id": "ten",
-            "properties": {"label": "10%", "enabled": {"$expr": "state.percent != 10"}},
+            "properties": {"label": "10%", "role": "secondary", "enabled": {"$expr": "state.percent != 10"}},
             "on": {"tap": [{"action": "$set", "key": "percent", "value": 10}]}
           },
           {
             "type": "Button",
             "id": "fifteen",
-            "properties": {"label": "15%", "enabled": {"$expr": "state.percent != 15"}},
+            "properties": {"label": "15%", "role": "secondary", "enabled": {"$expr": "state.percent != 15"}},
             "on": {"tap": [{"action": "$set", "key": "percent", "value": 15}]}
           },
           {
             "type": "Button",
             "id": "twenty",
-            "properties": {"label": "20%", "enabled": {"$expr": "state.percent != 20"}},
+            "properties": {"label": "20%", "role": "secondary", "enabled": {"$expr": "state.percent != 20"}},
             "on": {"tap": [{"action": "$set", "key": "percent", "value": 20}]}
           }
         ]
@@ -533,14 +589,14 @@ const LIFECYCLE_CALCULATOR: Example = {
         "type": "Text",
         "properties": {
           "text": {"$expr": "$concat('Tip: ', $str($round(state.bill * $double(state.percent)) / 100.0), ' EUR')"},
-          "role": "body"
+          "role": "subtitle"
         }
       },
       {
         "type": "Text",
         "properties": {
           "text": {"$expr": "$concat('Total: ', $str($round(state.bill * (100.0 + $double(state.percent))) / 100.0), ' EUR')"},
-          "role": "body"
+          "role": "title"
         }
       }
     ]
@@ -563,13 +619,20 @@ const LIFECYCLE_CALCULATOR: Example = {
 const SHOPPING_LIST: Example = {
   key: "shopping-list",
   title: "A list edited in place",
+  group: "State and actions",
+  description:
+    "A list the document edits in place with the array actions, a watch that clears the draft, and two host functions the playground answers. Fill the list, then edit the document: it is replaced on the live view and your rows survive.",
+  docsUrl: "https://get-milano.dev/sdk/documents#watch",
   vocabulary: `{
   "milano": "2.1.0",
   "name": "starter",
   "version": "1.2.0",
   "components": {
     "Column": {"children": true},
-    "Row": {"children": true},
+    "Row": {
+      "children": true,
+      "properties": {"justify": {"enum": ["start", "center", "end", "spaceBetween"], "optional": true}}
+    },
     "Text": {
       "properties": {
         "text": "string",
@@ -585,7 +648,7 @@ const SHOPPING_LIST: Example = {
       "events": {"change": "bool"}
     },
     "Button": {
-      "properties": {"label": "string", "enabled": "bool"},
+      "properties": {"label": "string", "enabled": "bool", "role": {"enum": ["primary", "secondary", "tertiary"], "optional": true}},
       "events": {"tap": null}
     }
   },
@@ -649,6 +712,7 @@ const SHOPPING_LIST: Example = {
           {
             "type": "Row",
             "id": "line",
+            "properties": {"justify": "spaceBetween"},
             "children": [
               {
                 "type": "Checkbox",
@@ -659,7 +723,7 @@ const SHOPPING_LIST: Example = {
               {
                 "type": "Button",
                 "id": "remove",
-                "properties": {"label": "Remove", "enabled": true},
+                "properties": {"label": "Remove", "enabled": true, "role": "tertiary"},
                 "on": {"tap": [{"action": "$remove", "key": "items", "at": {"$expr": "item_index"}}]}
               }
             ]
@@ -687,6 +751,10 @@ const SHOPPING_LIST: Example = {
 const CONDITIONAL_BRANCH: Example = {
   key: "conditional-branch",
   title: "One branch or the other ($if)",
+  group: "Constructs and strings",
+  description:
+    "The $if construct: a bool expression chooses which branch materializes. Tick the box and the subtree is replaced, not hidden; the branch not taken is still validated.",
+  docsUrl: "https://get-milano.dev/sdk/documents#choosing-a-subtree-with-if",
   vocabulary: `{
   "milano": "2.1.0",
   "name": "starter",
@@ -737,17 +805,26 @@ const CONDITIONAL_BRANCH: Example = {
 // with a `default` covering the rest. A member that neither a case nor the
 // default covers fails the build, rather than rendering nothing; drop the
 // default here and "failed" is exactly that violation. Edit "status" in
-// the State tab to move between the branches.
+// the "State values" pane to move between the branches.
 const SWITCH_BRANCH: Example = {
   key: "switch-branch",
   title: "A branch per member ($switch)",
+  group: "Constructs and strings",
+  description:
+    "The $switch construct: one branch per member of an enum, a default for the rest. Edit the status key in the State values pane to move between branches; drop the default from the document and the uncovered member becomes a build error.",
+  docsUrl: "https://get-milano.dev/sdk/documents#choosing-among-many-with-switch",
   vocabulary: `{
   "milano": "2.1.0",
   "name": "starter",
   "version": "1.0.0",
   "components": {
     "Column": {"children": true},
-    "Badge": {"properties": {"text": "string"}}
+    "Badge": {
+      "properties": {
+        "text": "string",
+        "tone": {"enum": ["info", "success", "warning", "danger"], "optional": true}
+      }
+    }
   },
   "actions": {}
 }`,
@@ -761,10 +838,10 @@ const SWITCH_BRANCH: Example = {
         "type": "$switch",
         "subject": {"$expr": "state.status"},
         "cases": {
-          "ok": [{"type": "Badge", "properties": {"text": "On time"}}],
-          "late": [{"type": "Badge", "properties": {"text": "Running late"}}]
+          "ok": [{"type": "Badge", "properties": {"text": "On time", "tone": "success"}}],
+          "late": [{"type": "Badge", "properties": {"text": "Running late", "tone": "warning"}}]
         },
-        "default": [{"type": "Badge", "properties": {"text": "Needs attention"}}]
+        "default": [{"type": "Badge", "properties": {"text": "Needs attention", "tone": "danger"}}]
       }
     ]
   }
@@ -783,13 +860,22 @@ const SWITCH_BRANCH: Example = {
 const MASKED_CARD: Example = {
   key: "masked-card",
   title: "Mask all but the last four ($substring)",
+  group: "Constructs and strings",
+  description:
+    "$substring and $length masking all but the last four characters. Type in the field and the mask follows; indices clamp, so a short number is still a total expression.",
+  docsUrl: "https://get-milano.dev/specs/03-expression-language.html#strings",
   vocabulary: `{
   "milano": "2.1.0",
   "name": "starter",
   "version": "1.0.0",
   "components": {
     "Column": {"children": true},
-    "Text": {"properties": {"text": "string"}},
+    "Text": {
+      "properties": {
+        "text": "string",
+        "role": {"enum": ["title", "subtitle", "body", "caption"], "optional": true}
+      }
+    },
     "TextField": {
       "properties": {"label": "string", "value": "string"},
       "events": {"change": "string"}
@@ -818,7 +904,8 @@ const MASKED_CARD: Example = {
         "properties": {
           "text": {
             "$expr": "$concat('\u2022\u2022\u2022\u2022 ', $substring(state.card, $length(state.card) - 4, $length(state.card)))"
-          }
+          },
+          "role": "title"
         }
       }
     ]
