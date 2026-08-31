@@ -680,11 +680,165 @@ const SHOPPING_LIST: Example = {
   actions: `{}`
 };
 
+// The $if construct (contract 2.1): a bool expression chooses which branch
+// of the document materializes. The branch not taken is validated at the
+// gate but never resolved, so flipping the box replaces the subtree rather
+// than hiding it.
+const CONDITIONAL_BRANCH: Example = {
+  key: "conditional-branch",
+  title: "One branch or the other ($if)",
+  vocabulary: `{
+  "milano": "2.1.0",
+  "name": "starter",
+  "version": "1.0.0",
+  "components": {
+    "Column": {"children": true},
+    "Text": {"properties": {"text": "string"}},
+    "Checkbox": {
+      "properties": {"label": "string", "checked": "bool"},
+      "events": {"change": "bool"}
+    }
+  },
+  "actions": {}
+}`,
+  document: `{
+  "version": "2.1.0",
+  "state": {"signedIn": "bool"},
+  "root": {
+    "type": "Column",
+    "children": [
+      {
+        "type": "Checkbox",
+        "properties": {
+          "label": "Signed in",
+          "checked": {"$expr": "state.signedIn"}
+        },
+        "on": {
+          "change": [{"action": "$set", "key": "signedIn", "value": {"$expr": "event"}}]
+        }
+      },
+      {
+        "type": "$if",
+        "condition": {"$expr": "state.signedIn"},
+        "then": [{"type": "Text", "properties": {"text": "Welcome back."}}],
+        "else": [{"type": "Text", "properties": {"text": "Please sign in."}}]
+      }
+    ]
+  }
+}`,
+  context: `{}`,
+  state: `{
+  "signedIn": false
+}`,
+  actions: `{}`
+};
+
+// The $switch construct (contract 2.1): one branch per member of an enum,
+// with a `default` covering the rest. A member that neither a case nor the
+// default covers fails the build, rather than rendering nothing; drop the
+// default here and "failed" is exactly that violation. Edit "status" in
+// the State tab to move between the branches.
+const SWITCH_BRANCH: Example = {
+  key: "switch-branch",
+  title: "A branch per member ($switch)",
+  vocabulary: `{
+  "milano": "2.1.0",
+  "name": "starter",
+  "version": "1.0.0",
+  "components": {
+    "Column": {"children": true},
+    "Badge": {"properties": {"text": "string"}}
+  },
+  "actions": {}
+}`,
+  document: `{
+  "version": "2.1.0",
+  "state": {"status": {"enum": ["ok", "late", "failed"]}},
+  "root": {
+    "type": "Column",
+    "children": [
+      {
+        "type": "$switch",
+        "subject": {"$expr": "state.status"},
+        "cases": {
+          "ok": [{"type": "Badge", "properties": {"text": "On time"}}],
+          "late": [{"type": "Badge", "properties": {"text": "Running late"}}]
+        },
+        "default": [{"type": "Badge", "properties": {"text": "Needs attention"}}]
+      }
+    ]
+  }
+}`,
+  context: `{}`,
+  state: `{
+  "status": "late"
+}`,
+  actions: `{}`
+};
+
+// $substring with $length (contract 2.1): the last four characters kept,
+// the rest masked, computed in the document. Type in the field and the
+// mask follows; no host code formats anything. Indices are clamped, so a
+// number shorter than four characters is still a total expression.
+const MASKED_CARD: Example = {
+  key: "masked-card",
+  title: "Mask all but the last four ($substring)",
+  vocabulary: `{
+  "milano": "2.1.0",
+  "name": "starter",
+  "version": "1.0.0",
+  "components": {
+    "Column": {"children": true},
+    "Text": {"properties": {"text": "string"}},
+    "TextField": {
+      "properties": {"label": "string", "value": "string"},
+      "events": {"change": "string"}
+    }
+  },
+  "actions": {}
+}`,
+  document: `{
+  "version": "2.1.0",
+  "state": {"card": "string"},
+  "root": {
+    "type": "Column",
+    "children": [
+      {
+        "type": "TextField",
+        "properties": {
+          "label": "Card number",
+          "value": {"$expr": "state.card"}
+        },
+        "on": {
+          "change": [{"action": "$set", "key": "card", "value": {"$expr": "event"}}]
+        }
+      },
+      {
+        "type": "Text",
+        "properties": {
+          "text": {
+            "$expr": "$concat('\u2022\u2022\u2022\u2022 ', $substring(state.card, $length(state.card) - 4, $length(state.card)))"
+          }
+        }
+      }
+    ]
+  }
+}`,
+  context: `{}`,
+  state: `{
+  "card": "4111111111111111"
+}`,
+  actions: `{}`
+};
+
 export const EXAMPLES: Example[] = [
   CONSENT_BANNER,
   CONTACT_FORM,
   GUARDRAILS,
   REPEAT_LIST,
+  CONDITIONAL_BRANCH,
+  SWITCH_BRANCH,
+  MASKED_CARD,
   LIFECYCLE_CALCULATOR,
   SHOPPING_LIST
 ];
