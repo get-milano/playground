@@ -5,6 +5,7 @@
 import {
   MilanoActionFailure,
   MilanoBuildError,
+  MilanoContextHandle,
   MilanoEngine,
   MilanoEngineError,
   MilanoInfo,
@@ -111,8 +112,20 @@ export function hostFunction(call: MilanoFunctionCall): MilanoValue | null {
 }
 
 export type BuildOutcome =
-  | { readonly ok: true; readonly view: MilanoView; readonly registry: MilanoReactRegistry }
+  | {
+      readonly ok: true;
+      readonly view: MilanoView;
+      readonly registry: MilanoReactRegistry;
+      /** Push runtime context updates through this; the engine validates
+       *  each atomically and reports a rejection as an occurrence. */
+      readonly context: MilanoContextHandle;
+    }
   | { readonly ok: false; readonly failure: Failure };
+
+/** The context pane's text as engine values, for a runtime push. */
+export function parseContextValues(text: string): Record<string, MilanoValue> {
+  return parseRecord("context values", text);
+}
 
 function parseRecord(label: string, text: string): Record<string, MilanoValue> {
   const trimmed = text.trim();
@@ -239,10 +252,13 @@ export async function build(inputs: BuildInputs, streams: Streams): Promise<Buil
       functionHandler: hostFunction,
     });
 
+    const contextHandle = new MilanoContextHandle(
+      parseRecord("context values", inputs.context),
+    );
     const builder = engine
       .viewBuilder(inputs.document)
       .label("playground")
-      .context(parseRecord("context values", inputs.context));
+      .contextSource(contextHandle);
 
     const granted = applyGrants(builder, inputs.actions);
     const outcomesOf = (name: string): Outcomes =>
@@ -293,7 +309,7 @@ export async function build(inputs: BuildInputs, streams: Streams): Promise<Buil
         }),
     );
 
-    return { ok: true, view: await builder.build(), registry: engine.registry };
+    return { ok: true, view: await builder.build(), registry: engine.registry, context: contextHandle };
   } catch (error) {
     return { ok: false, failure: describe(error) };
   }

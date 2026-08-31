@@ -10,7 +10,12 @@
 // are addressable (#e=<key>), and the editors load lazily so the first
 // paint is the app, not Monaco.
 import { MilanoRenderedView } from "@get-milano/react";
-import type { MilanoOccurrence, MilanoUserInteraction, MilanoView } from "@get-milano/core";
+import type {
+  MilanoContextHandle,
+  MilanoOccurrence,
+  MilanoUserInteraction,
+  MilanoView,
+} from "@get-milano/core";
 import Alert from "@mui/material/Alert";
 import AlertTitle from "@mui/material/AlertTitle";
 import Box from "@mui/material/Box";
@@ -27,7 +32,14 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { build, ENGINE_VERSION, type BuildInputs, type Failure, type PendingAction } from "./engine";
+import {
+  build,
+  ENGINE_VERSION,
+  parseContextValues,
+  type BuildInputs,
+  type Failure,
+  type PendingAction,
+} from "./engine";
 import { ActionSnackbar } from "./ActionSnackbar";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { onBuildNow, revealRange, setGateMarkers, type GateMarker } from "./editor-link";
@@ -49,7 +61,8 @@ type PanelTab =
   | "timeline"
   | "occurrences"
   | "analytics"
-  | "tree";
+  | "tree"
+  | "bindings";
 
 /** The synthetic dropdown entry holding edits set aside by a switch. */
 const STASH_KEY = "__stash__";
@@ -310,6 +323,7 @@ export function App() {
   // generation-guarded so a slow build cannot overwrite a newer one.
   const generation = useRef(0);
   const current = useRef<MilanoView | null>(null);
+  const liveContext = useRef<MilanoContextHandle | null>(null);
   const built = useRef<BuildInputs | null>(null);
   useEffect(() => {
     const run = ++generation.current;
@@ -325,6 +339,33 @@ export function App() {
       // a rebuild.
       const previous = built.current;
       const live = current.current;
+      // Only the context changed under a live view: push it through the
+      // handle, the way a host updates context at runtime. The engine
+      // validates the update atomically; a rejection arrives as a
+      // rejectedContextUpdate occurrence, and the view keeps its values.
+      if (
+        previous !== null &&
+        live !== null &&
+        liveContext.current !== null &&
+        previous.context !== inputs.context &&
+        previous.document === inputs.document &&
+        previous.vocabulary === inputs.vocabulary &&
+        previous.state === inputs.state &&
+        previous.actions === inputs.actions &&
+        previous.policy === inputs.policy
+      ) {
+        try {
+          const values = parseContextValues(inputs.context);
+          liveContext.current.update(values);
+          built.current = inputs;
+          setBuilding(false);
+          setStreamed((s) => withEvent(s, timelineEvent("build", "context pushed to the live view")));
+          return;
+        } catch {
+          // Unparseable context: fall through to a full rebuild, whose
+          // failure says what the gate sees.
+        }
+      }
       if (
         previous !== null &&
         live !== null &&
@@ -403,6 +444,7 @@ export function App() {
         setBuilding(false);
         if (!outcome.ok) {
           current.current = null;
+          liveContext.current = null;
           setView(null);
           setFailure(outcome.failure);
           setStreamed({
@@ -416,6 +458,7 @@ export function App() {
           return;
         }
         current.current = outcome.view;
+        liveContext.current = outcome.context;
         setView(outcome.view);
         setRegistry(outcome.registry);
         setFailure(null);
@@ -777,6 +820,46 @@ interface PreviewPaneProps {
 function PreviewPane({ example, failure, occurrenceCount, view, registry, goToNode, narrow }: PreviewPaneProps) {
   const [dismissed, setDismissed] = useState<string | null>(null);
   const showDescription = example !== null && dismissed !== example.key;
+
+  // Inspect mode: hover outlines the innermost rendered node, a click
+  // reveals it in document.json. The bridge stamps every rendered root
+  // with data-milano-ref, which is all this needs.
+  const [inspecting, setInspecting] = useState(false);
+  const outlined = useRef<HTMLElement | null>(null);
+  const clearOutline = useCallback(() => {
+    if (outlined.current !== null) {
+      outlined.current.style.outline = "";
+      outlined.current.style.outlineOffset = "";
+      outlined.current = null;
+    }
+  }, []);
+  useEffect(() => {
+    if (!inspecting) clearOutline();
+  }, [clearOutline, inspecting]);
+  const stamped = (target: EventTarget | null): HTMLElement | null =>
+    target instanceof Element ? (target.closest("[data-milano-ref]") as HTMLElement | null) : null;
+  const hoverNode = (over: React.MouseEvent) => {
+    if (!inspecting) return;
+    const element = stamped(over.target);
+    if (element === outlined.current) return;
+    clearOutline();
+    if (element !== null) {
+      element.style.outline = "2px solid #1976d2";
+      element.style.outlineOffset = "1px";
+      outlined.current = element;
+    }
+  };
+  const pickNode = (click: React.MouseEvent) => {
+    if (!inspecting) return;
+    click.preventDefault();
+    click.stopPropagation();
+    const element = stamped(click.target);
+    const reference = element?.getAttribute("data-milano-ref");
+    setInspecting(false);
+    clearOutline();
+    if (reference) goToNode(reference);
+  };
+
   return (
     <Box
       sx={{
@@ -826,7 +909,33 @@ function PreviewPane({ example, failure, occurrenceCount, view, registry, goToNo
           </Alert>
         )}
       </Box>
-      <Box sx={{ flexGrow: 1, overflow: "auto", px: 1.5, pb: 1.5, pt: 1, minHeight: 80 }}>
+      <Stack direction="row" spacing={1} sx={{ px: 1.5, pt: 0.5, alignItems: "center", justifyContent: "flex-end" }}>
+        {inspecting ? (
+          <Typography variant="caption" color="text.secondary">
+            click an element to reveal its node
+          </Typography>
+        ) : null}
+        <Button
+          size="small"
+          color={inspecting ? "primary" : "inherit"}
+          variant={inspecting ? "outlined" : "text"}
+          onClick={() => setInspecting((now) => !now)}
+        >
+          Inspect
+        </Button>
+      </Stack>
+      <Box
+        onMouseOver={hoverNode}
+        onClickCapture={pickNode}
+        sx={{
+          flexGrow: 1,
+          overflow: "auto",
+          px: 1.5,
+          pb: 1.5,
+          minHeight: 80,
+          cursor: inspecting ? "crosshair" : "auto",
+        }}
+      >
         {view === null || registry === null ? null : (
           <ErrorBoundary resetKey={view}>
             <MilanoRenderedView view={view} registry={registry} />
@@ -894,6 +1003,7 @@ function BottomPanel({
             sx={{ minHeight: 32, fontSize: 12 }}
           />
           <Tab value="tree" label="Tree" sx={{ minHeight: 32, fontSize: 12 }} />
+          <Tab value="bindings" label="Bindings" sx={{ minHeight: 32, fontSize: 12 }} />
         </Tabs>
         {onClear === null ? null : (
           <Button size="small" onClick={onClear} sx={{ mr: 1 }}>
@@ -939,7 +1049,7 @@ function PanelContent({ tab, inputs, patch, view, streamed, goToNode }: PanelCon
   if (tab === "context") {
     return (
       <PanelField
-        label="Context values the surface supplies, as a JSON object"
+        label="Context values, as a JSON object · edits push to the live view"
         value={inputs.context}
         onChange={(context) => patch({ context })}
       />
@@ -963,6 +1073,7 @@ function PanelContent({ tab, inputs, patch, view, streamed, goToNode }: PanelCon
       />
     );
   }
+  if (tab === "bindings") return <BindingsPanel vocabulary={inputs.vocabulary} />;
   if (view === null) {
     return (
       <Typography variant="body2" color="text.secondary">
@@ -1057,6 +1168,73 @@ function PanelField({
       onChange={(change) => onChange(change.target.value)}
       slotProps={{ input: { sx: { fontFamily: "monospace", fontSize: 12 } } }}
     />
+  );
+}
+
+type BindingLanguage = "swift" | "kotlin" | "ts";
+
+const BINDING_LABELS: Record<BindingLanguage, string> = {
+  swift: "Swift",
+  kotlin: "Kotlin",
+  ts: "TypeScript",
+};
+
+/**
+ * What `milano bindings` would generate from the vocabulary pane, using
+ * the CLI's own generator: the same bytes a project would commit. The
+ * generator module is pure and loads lazily, outside the main chunk.
+ */
+function BindingsPanel({ vocabulary }: { readonly vocabulary: string }) {
+  const [language, setLanguage] = useState<BindingLanguage>("swift");
+  const [output, setOutput] = useState("generating…");
+  useEffect(() => {
+    let cancelled = false;
+    void import("@milano-cli-bindings").then((generators) => {
+      let text: string;
+      try {
+        const parsed = JSON.parse(vocabulary) as Record<string, unknown>;
+        text =
+          language === "swift"
+            ? generators.generateSwift(parsed, generators.defaultPrefix(parsed))
+            : language === "kotlin"
+              ? generators.generateKotlin(parsed, "dev.getmilano.playground", "")
+              : generators.generateTs(parsed, generators.defaultPrefix(parsed), "@get-milano/core");
+      } catch (error) {
+        text = `cannot generate: ${error instanceof Error ? error.message : String(error)}`;
+      }
+      if (!cancelled) setOutput(text);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [language, vocabulary]);
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row" spacing={0.5} useFlexGap sx={{ alignItems: "center", flexWrap: "wrap" }}>
+        {(Object.keys(BINDING_LABELS) as BindingLanguage[]).map((candidate) => (
+          <Chip
+            key={candidate}
+            size="small"
+            label={BINDING_LABELS[candidate]}
+            color={candidate === language ? "primary" : "default"}
+            variant={candidate === language ? "filled" : "outlined"}
+            onClick={() => setLanguage(candidate)}
+          />
+        ))}
+        <Box sx={{ flexGrow: 1 }} />
+        <Button
+          size="small"
+          onClick={() => {
+            void navigator.clipboard.writeText(output).catch(() => {});
+          }}
+        >
+          Copy
+        </Button>
+      </Stack>
+      <Box component="pre" sx={{ m: 0, fontSize: 12, fontFamily: "monospace", whiteSpace: "pre" }}>
+        {output}
+      </Box>
+    </Stack>
   );
 }
 

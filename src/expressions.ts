@@ -6,6 +6,7 @@
 // not parse simply offers fewer suggestions.
 import { monaco } from "./monaco";
 
+import { hoverInfo } from "./hover";
 import { expressionSuggestions, type Suggestion } from "./suggest";
 
 /** The vocabulary pane's text, refreshed as it is edited. */
@@ -72,6 +73,26 @@ export function installExpressionCompletion(): void {
           range,
           sortText: `${ORDER[suggestion.kind]}${suggestion.label}`,
         })),
+      };
+    },
+  });
+  monaco.languages.registerHoverProvider("json", {
+    provideHover(model, position) {
+      if (!model.uri.toString().startsWith("milano://model/")) return null;
+      const info = hoverInfo(
+        model.getLineContent(position.lineNumber),
+        position.column,
+        vocabularyText,
+      );
+      if (info === null) return null;
+      return {
+        range: new monaco.Range(
+          position.lineNumber,
+          info.startColumn,
+          position.lineNumber,
+          info.endColumn,
+        ),
+        contents: [{ value: info.text }],
       };
     },
   });

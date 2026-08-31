@@ -49,8 +49,18 @@ function member<T extends string>(node: MilanoNode, name: string, fallback: T): 
   return (node.property(name).stringValue as T | null) ?? fallback;
 }
 
+/**
+ * Every rendered root carries the node's reference as a data attribute, so
+ * the playground's inspect mode can walk from a pixel back to the node
+ * that produced it. Hosts need nothing like this; it is the playground
+ * being a teaching tool.
+ */
+function refTag(node: MilanoNode): { "data-milano-ref": string } {
+  return { "data-milano-ref": node.reference };
+}
+
 const Column: MilanoRenderer = ({ node }) => (
-  <Stack spacing={`${integer(node, "spacing", 12)}px`} sx={{ p: 2 }}>
+  <Stack {...refTag(node)} spacing={`${integer(node, "spacing", 12)}px`} sx={{ p: 2 }}>
     {node.children}
   </Stack>
 );
@@ -64,6 +74,7 @@ const JUSTIFY: Record<string, string> = {
 
 const Row: MilanoRenderer = ({ node }) => (
   <Stack
+    {...refTag(node)}
     direction="row"
     spacing={`${integer(node, "spacing", 8)}px`}
     sx={{
@@ -82,6 +93,7 @@ const Text: MilanoRenderer = ({ node }) => {
   const liveRegion = node.property("liveRegion").stringValue;
   return (
     <Typography
+      {...refTag(node)}
       variant={
         role === "title" ? "h6" : role === "subtitle" ? "subtitle2" : role === "caption" ? "caption" : "body2"
       }
@@ -104,6 +116,7 @@ const ButtonRenderer: MilanoRenderer = ({ node }) => {
   if (!flag(node, "visible", true)) return null;
   return (
     <Button
+      {...refTag(node)}
       variant={BUTTON_VARIANTS[member<keyof typeof BUTTON_VARIANTS>(node, "role", "primary")] ?? "contained"}
       size="small"
       disabled={!flag(node, "enabled", true)}
@@ -119,6 +132,7 @@ const TextFieldRenderer: MilanoRenderer = ({ node }) => {
   const error = optionalText(node, "error");
   return (
     <TextField
+      {...refTag(node)}
       size="small"
       fullWidth
       label={text(node, "label")}
@@ -138,6 +152,7 @@ const NumberFieldRenderer: MilanoRenderer = ({ node }) => {
   if (!flag(node, "visible", true)) return null;
   return (
     <TextField
+      {...refTag(node)}
       size="small"
       type="number"
       label={text(node, "label")}
@@ -156,6 +171,7 @@ const CheckboxRenderer: MilanoRenderer = ({ node }) => {
   if (!flag(node, "visible", true)) return null;
   return (
     <FormControlLabel
+      {...refTag(node)}
       control={
         <Checkbox
           size="small"
@@ -193,6 +209,7 @@ const Banner: MilanoRenderer = ({ node }) => {
   if (layout === "strip") {
     return (
       <Alert
+        {...refTag(node)}
         severity="info"
         icon={false}
         sx={{ m: 2, borderRadius: `${radius}px`, "& .MuiAlert-message": { width: "100%" } }}
@@ -227,6 +244,7 @@ const Banner: MilanoRenderer = ({ node }) => {
 
   return (
     <Card
+      {...refTag(node)}
       elevation={layout === "card" ? 3 : 0}
       sx={{
         position: "relative",
@@ -255,7 +273,7 @@ const Banner: MilanoRenderer = ({ node }) => {
 };
 
 const CardRenderer: MilanoRenderer = ({ node }) => (
-  <Card variant="outlined" sx={{ borderRadius: `${integer(node, "cornerRadius", 12)}px` }}>
+  <Card {...refTag(node)} variant="outlined" sx={{ borderRadius: `${integer(node, "cornerRadius", 12)}px` }}>
     <CardActionArea
       onClick={() => node.emit("tap")}
       aria-label={optionalText(node, "accessibilityLabel")}
@@ -270,6 +288,7 @@ const ImageRenderer: MilanoRenderer = ({ node }) => {
   const decorative = flag(node, "decorative", false);
   return (
     <Box
+      {...refTag(node)}
       component="img"
       src={text(node, "url")}
       alt={decorative ? "" : (optionalText(node, "contentDescription") ?? "")}
@@ -296,6 +315,7 @@ const Badge: MilanoRenderer = ({ node }) => {
   const tone = node.property("tone").stringValue as keyof typeof BADGE_TONES | null;
   return (
     <Chip
+      {...refTag(node)}
       size="small"
       label={text(node, "text")}
       color={tone === null ? "default" : (BADGE_TONES[tone] ?? "default")}
@@ -329,6 +349,7 @@ function generic(
   return function GenericNode({ node }) {
     return (
       <Box
+        {...refTag(node)}
         sx={{
           border: "1px dashed",
           borderColor: "divider",

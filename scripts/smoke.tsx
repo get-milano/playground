@@ -13,7 +13,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { build, type PendingAction } from "../src/engine";
 import { EXAMPLES } from "../src/samples";
 import { expressionSuggestions } from "../src/suggest";
+import { hoverInfo } from "../src/hover";
 import { locateReference } from "../src/locate";
+import { generateKotlin, generateSwift, generateTs, defaultPrefix } from "@milano-cli-bindings";
+import { parseContextValues } from "../src/engine";
 
 async function main(): Promise<void> {
   let failures = 0;
@@ -46,6 +49,11 @@ async function main(): Promise<void> {
         console.error(`FAIL ${example.key}: rendered nothing`);
         continue;
       }
+      if (!html.includes("data-milano-ref=")) {
+        failures += 1;
+        console.error(`FAIL ${example.key}: rendered without inspectable node references`);
+        continue;
+      }
       const material = (html.match(/Mui[A-Za-z]+-root/g) ?? []).length;
       console.log(`ok   ${example.key}: ${html.length} bytes, ${material} Material elements`);
       if (process.env["SMOKE_DUMP"] !== undefined) console.log(html.slice(0, 400));
@@ -59,6 +67,9 @@ async function main(): Promise<void> {
 
   failures += suggestionCheck();
   failures += locatorCheck();
+  failures += hoverCheck();
+  failures += bindingsCheck();
+  failures += await contextUpdateCheck();
 
   // Server rendering never mounts, so it cannot see what breaks on mount:
   // transitions, effects, refs. This mounts the interactive pieces in a
@@ -151,6 +162,110 @@ function locatorCheck(): number {
     return problems.length;
   }
   console.log(`ok   locate: ${cases.length} reference forms land on the node they name`);
+  return 0;
+}
+
+/** The editor hover: functions, host functions, and component cards. */
+function hoverCheck(): number {
+  const shopping = EXAMPLES.find((entry) => entry.key === "shopping-list") as (typeof EXAMPLES)[number];
+  const branching = EXAMPLES.find((entry) => entry.key === "switch-branch") as (typeof EXAMPLES)[number];
+  const problems: string[] = [];
+
+  const fn = hoverInfo('    "text": {"$expr": "$substring(state.card, 0, 4)"}', 32, shopping.vocabulary);
+  if (fn === null || !fn.text.includes("clamped")) problems.push("no signature for $substring");
+
+  const host = hoverInfo('  "$expr": "formatMoney(item.price)"', 15, shopping.vocabulary);
+  if (host === null || !host.text.includes("host function")) problems.push("no card for formatMoney");
+
+  const line = '        "type": "Badge",';
+  const component = hoverInfo(line, line.indexOf("Badge") + 2, branching.vocabulary);
+  if (component === null || !component.text.includes("enum(info | success | warning | danger)?")) {
+    problems.push("no component card for Badge");
+  }
+
+  if (hoverInfo('  "text": "plain words"', 12, shopping.vocabulary) !== null) {
+    problems.push("offered a hover for a plain word");
+  }
+
+  if (problems.length > 0) {
+    for (const problem of problems) console.error(`FAIL hover: ${problem}`);
+    return problems.length;
+  }
+  console.log("ok   hover: functions, host functions, and components answer");
+  return 0;
+}
+
+/** The CLI's bindings generator, run the way the Bindings tab runs it. */
+function bindingsCheck(): number {
+  const example = EXAMPLES.find((entry) => entry.key === "shopping-list") as (typeof EXAMPLES)[number];
+  const vocabulary = JSON.parse(example.vocabulary) as Record<string, unknown>;
+  const problems: string[] = [];
+  try {
+    const swift = generateSwift(vocabulary, defaultPrefix(vocabulary));
+    if (!swift.includes("struct") && !swift.includes("enum")) problems.push("Swift output has no types");
+    const kotlin = generateKotlin(vocabulary, "dev.getmilano.playground", "");
+    if (!kotlin.includes("package dev.getmilano.playground")) problems.push("Kotlin output misses its package");
+    const ts = generateTs(vocabulary, defaultPrefix(vocabulary), "@get-milano/core");
+    if (!ts.includes("export") || !ts.includes("@get-milano/core")) problems.push("TypeScript output incomplete");
+  } catch (error) {
+    problems.push(`generator threw: ${String(error)}`);
+  }
+  if (problems.length > 0) {
+    for (const problem of problems) console.error(`FAIL bindings: ${problem}`);
+    return problems.length;
+  }
+  console.log("ok   bindings: Swift, Kotlin, and TypeScript generate from the vocabulary");
+  return 0;
+}
+
+/**
+ * The live context handle: an accepted update re-resolves the view, a
+ * mismatched one is rejected whole and reported, values untouched.
+ */
+async function contextUpdateCheck(): Promise<number> {
+  const example = EXAMPLES.find((entry) => entry.key === "consent-banner") as (typeof EXAMPLES)[number];
+  const occurrences: string[] = [];
+  const outcome = await build(
+    {
+      vocabulary: example.vocabulary,
+      document: example.document,
+      context: example.context,
+      state: example.state,
+      actions: example.actions,
+      policy: "fail",
+    },
+    { onOccurrence: (o) => occurrences.push(o.kind), onInteraction: () => {}, onAction: () => {} },
+  );
+  if (!outcome.ok) {
+    console.error("FAIL context: the example did not build");
+    return 1;
+  }
+  const problems: string[] = [];
+  try {
+    outcome.context.update(parseContextValues('{"userName": "Grace"}'));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const markup = renderToStaticMarkup(
+      createElement(MilanoRenderedView, { view: outcome.view, registry: outcome.registry }),
+    );
+    if (!markup.includes("Hello, Grace")) problems.push("accepted update did not re-resolve the greeting");
+
+    outcome.context.update(parseContextValues('{"userName": 42}'));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    if (!occurrences.includes("rejectedContextUpdate")) {
+      problems.push("mismatched update was not reported as rejected");
+    }
+    const after = renderToStaticMarkup(
+      createElement(MilanoRenderedView, { view: outcome.view, registry: outcome.registry }),
+    );
+    if (!after.includes("Hello, Grace")) problems.push("rejected update changed the view");
+  } finally {
+    outcome.view.teardown();
+  }
+  if (problems.length > 0) {
+    for (const problem of problems) console.error(`FAIL context: ${problem}`);
+    return problems.length;
+  }
+  console.log("ok   context: live update re-resolves, a mismatch is rejected and reported");
   return 0;
 }
 
