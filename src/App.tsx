@@ -1185,12 +1185,15 @@ const BINDING_LABELS: Record<BindingLanguage, string> = {
  * generator module is pure and loads lazily, outside the main chunk.
  */
 function BindingsPanel({ vocabulary }: { readonly vocabulary: string }) {
+  const prefersDark = useMediaQuery("(prefers-color-scheme: dark)");
   const [language, setLanguage] = useState<BindingLanguage>("swift");
   const [output, setOutput] = useState("generating…");
+  const [colored, setColored] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
-    void import("@milano-cli-bindings").then((generators) => {
+    void import("@milano-cli-bindings").then(async (generators) => {
       let text: string;
+      let generated = true;
       try {
         const parsed = JSON.parse(vocabulary) as Record<string, unknown>;
         text =
@@ -1201,13 +1204,28 @@ function BindingsPanel({ vocabulary }: { readonly vocabulary: string }) {
               : generators.generateTs(parsed, generators.defaultPrefix(parsed), "@get-milano/core");
       } catch (error) {
         text = `cannot generate: ${error instanceof Error ? error.message : String(error)}`;
+        generated = false;
       }
-      if (!cancelled) setOutput(text);
+      // The language's own coloring, as static HTML from Monaco's
+      // tokenizer; plain text is the fallback, never an error.
+      let html: string | null = null;
+      if (generated) {
+        try {
+          const { colorize } = await import("./colorize");
+          html = await colorize(text, language, prefersDark);
+        } catch {
+          html = null;
+        }
+      }
+      if (!cancelled) {
+        setOutput(text);
+        setColored(html);
+      }
     });
     return () => {
       cancelled = true;
     };
-  }, [language, vocabulary]);
+  }, [language, prefersDark, vocabulary]);
   return (
     <Stack spacing={1}>
       <Stack direction="row" spacing={0.5} useFlexGap sx={{ alignItems: "center", flexWrap: "wrap" }}>
@@ -1231,9 +1249,19 @@ function BindingsPanel({ vocabulary }: { readonly vocabulary: string }) {
           Copy
         </Button>
       </Stack>
-      <Box component="pre" sx={{ m: 0, fontSize: 12, fontFamily: "monospace", whiteSpace: "pre" }}>
-        {output}
-      </Box>
+      {colored === null ? (
+        <Box component="pre" sx={{ m: 0, fontSize: 12, fontFamily: "monospace", whiteSpace: "pre" }}>
+          {output}
+        </Box>
+      ) : (
+        <Box
+          component="pre"
+          sx={{ m: 0, fontSize: 12, fontFamily: "monospace", whiteSpace: "pre", lineHeight: 1.5 }}
+          // Monaco's own colorizer output: token spans, produced locally
+          // from the generated text, never from remote content.
+          dangerouslySetInnerHTML={{ __html: colored }}
+        />
+      )}
     </Stack>
   );
 }
