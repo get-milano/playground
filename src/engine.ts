@@ -3,6 +3,7 @@
 // verdict says is what a host app would get, because it is the same code
 // a host app installs from npm.
 import {
+  MilanoActionFailure,
   MilanoBuildError,
   MilanoEngine,
   MilanoEngineError,
@@ -15,6 +16,7 @@ import {
 } from "@get-milano/core";
 import type {
   MilanoAction,
+  MilanoFunctionCall,
   MilanoOccurrence,
   MilanoUnknownTypePolicy,
   MilanoUserInteraction,
@@ -32,6 +34,8 @@ export interface PendingAction {
   readonly action: MilanoAction;
   /** The declared result type, so the UI knows what a success needs. */
   readonly resultType: string | null;
+  /** The declared failure type, so the UI knows what a failure may carry. */
+  readonly failureType: string | null;
   readonly settle: (outcome: "success" | "failure", value: string) => void;
 }
 
@@ -54,6 +58,49 @@ export interface Streams {
 export interface Failure {
   readonly headline: string;
   readonly detail: string;
+}
+
+/**
+ * The playground's host functions: what its engine answers when a
+ * vocabulary declares one of these names with a compatible signature. A
+ * real app writes its own handler; here a small library stands in, and a
+ * declared function it does not know answers null, which the engine
+ * reports as an invalid function result in the Occurrences tab (the zero
+ * value of the declared return then shows in the view).
+ */
+export const HOST_FUNCTIONS: Readonly<Record<string, string>> = {
+  formatMoney: "formatMoney(amount: double | int, currency: string) -> string, in the browser's locale",
+  formatPercent: "formatPercent(fraction: double) -> string, one decimal",
+  upper: "upper(text: string) -> string",
+  lower: "lower(text: string) -> string",
+  plural: "plural(count: int, singular: string, plural: string) -> string",
+};
+
+export function hostFunction(call: MilanoFunctionCall): MilanoValue | null {
+  const [first, second, third] = call.arguments;
+  switch (call.name) {
+    case "formatMoney": {
+      const amount = first?.numberValue ?? 0;
+      const currency = second?.stringValue ?? "EUR";
+      try {
+        return MilanoValue.string(new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount));
+      } catch {
+        return MilanoValue.string(`${amount.toFixed(2)} ${currency}`);
+      }
+    }
+    case "formatPercent":
+      return MilanoValue.string(`${((first?.numberValue ?? 0) * 100).toFixed(1)}%`);
+    case "upper":
+      return MilanoValue.string((first?.stringValue ?? "").toUpperCase());
+    case "lower":
+      return MilanoValue.string((first?.stringValue ?? "").toLowerCase());
+    case "plural":
+      return MilanoValue.string(
+        Number(first?.intValue ?? 0n) === 1 ? (second?.stringValue ?? "") : (third?.stringValue ?? ""),
+      );
+    default:
+      return null;
+  }
 }
 
 export type BuildOutcome =
@@ -83,15 +130,18 @@ function shapes(vocabulary: MilanoVocabulary): Record<string, ComponentShape> {
   return components;
 }
 
+/** The completion types an action declares: what a success or a failure carries. */
+interface Outcomes {
+  readonly result: MilanoType | null;
+  readonly failure: MilanoType | null;
+}
+
 /**
  * Grants from the actions pane: `{"allow": [...], "declare": {...}}`.
- * Returns the result types it declared, which override the vocabulary's.
+ * Returns the outcome types it declared, which override the vocabulary's.
  */
-function applyGrants(
-  builder: MilanoReactBuilder,
-  text: string,
-): Record<string, MilanoType | null> {
-  const declared: Record<string, MilanoType | null> = {};
+function applyGrants(builder: MilanoReactBuilder, text: string): Record<string, Outcomes> {
+  const declared: Record<string, Outcomes> = {};
   const trimmed = text.trim();
   if (trimmed.length === 0) return declared;
   const grants = parseJson(trimmed).recordValue;
@@ -115,14 +165,30 @@ function applyGrants(
       const resultDescriptor = fields["result"];
       const result =
         resultDescriptor === undefined ? null : MilanoType.fromDescriptor(resultDescriptor);
-      builder.action(name, { parameters, ...(result === null ? {} : { result }) });
-      declared[name] = result;
+      const failureDescriptor = fields["failure"];
+      const failure =
+        failureDescriptor === undefined ? null : MilanoType.fromDescriptor(failureDescriptor);
+      builder.action(name, {
+        parameters,
+        ...(result === null ? {} : { result }),
+        ...(failure === null ? {} : { failure }),
+      });
+      declared[name] = { result, failure };
     }
   }
   return declared;
 }
 
-function describe(error: unknown): Failure {
+/** The value the author typed, as JSON when it parses and as a string otherwise. */
+function readValue(entered: string): MilanoValue {
+  try {
+    return parseJson(entered);
+  } catch {
+    return MilanoValue.string(entered);
+  }
+}
+
+export function describe(error: unknown): Failure {
   if (error instanceof MilanoEngineError) {
     return {
       headline: `Vocabulary rejected: ${error.type}`,
@@ -162,6 +228,7 @@ export async function build(inputs: BuildInputs, streams: Streams): Promise<Buil
       defaultUnknownTypePolicy: inputs.policy as MilanoUnknownTypePolicy,
       observer: { occurrence: streams.onOccurrence },
       userInteractionObserver: { interaction: streams.onInteraction },
+      functionHandler: hostFunction,
     });
 
     const builder = engine
@@ -169,38 +236,46 @@ export async function build(inputs: BuildInputs, streams: Streams): Promise<Buil
       .label("playground")
       .context(parseRecord("context values", inputs.context));
 
-    const grantedResults = applyGrants(builder, inputs.actions);
-    const resultTypeOf = (name: string): MilanoType | null =>
-      name in grantedResults ? grantedResults[name] ?? null : (vocabulary.actions[name]?.result ?? null);
+    const granted = applyGrants(builder, inputs.actions);
+    const outcomesOf = (name: string): Outcomes =>
+      granted[name] ?? {
+        result: vocabulary.actions[name]?.result ?? null,
+        failure: vocabulary.actions[name]?.failure ?? null,
+      };
 
     const supplied = parseRecord("state values", inputs.state);
     builder.stateData((declarations) => synthesizedState(declarations, supplied));
 
     // Custom actions are handed to the UI and left pending: the author
     // decides the outcome, which is how onSuccess and onFailure become
-    // explorable instead of theoretical.
+    // explorable instead of theoretical. The typed value the author enters
+    // travels the way a host's would: a result as the return value, a
+    // failure payload inside a MilanoActionFailure, and the engine's own
+    // completion check decides whether either fits the declaration.
     builder.actionHandler(
       (action) =>
         new Promise<MilanoValue | null>((resolve, reject) => {
-          const resultType = resultTypeOf(action.name);
+          const outcomes = outcomesOf(action.name);
           streams.onAction({
             id: nextActionId++,
             action,
-            resultType: resultType?.name ?? null,
+            resultType: outcomes.result?.name ?? null,
+            failureType: outcomes.failure?.name ?? null,
             settle(outcome, value) {
+              const entered = value.trim();
               if (outcome === "failure") {
-                reject(new Error(value.trim().length === 0 ? "rejected in the playground" : value));
+                if (outcomes.failure === null || entered.length === 0) {
+                  reject(new Error("rejected in the playground"));
+                  return;
+                }
+                reject(new MilanoActionFailure(readValue(entered)));
                 return;
               }
-              if (resultType === null || value.trim().length === 0) {
+              if (outcomes.result === null || entered.length === 0) {
                 resolve(null);
                 return;
               }
-              try {
-                resolve(parseJson(value.trim()));
-              } catch {
-                resolve(MilanoValue.string(value));
-              }
+              resolve(readValue(entered));
             },
           });
         }),

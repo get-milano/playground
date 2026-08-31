@@ -24,6 +24,8 @@ import { ActionSnackbar } from "./ActionSnackbar";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { JsonEditor } from "./JsonEditor";
 import { EXAMPLES } from "./samples";
+import { describe } from "./engine";
+import { installExpressionCompletion, setExpressionScope } from "./expressions";
 import { applyEditorSchemas, loadEditorSchemas } from "./schemas";
 import { decodeState, encodeState } from "./share";
 
@@ -99,8 +101,12 @@ export function App() {
   const [schemas, setSchemas] = useState(false);
   useEffect(() => {
     void loadEditorSchemas().then(setSchemas);
+    // Completion inside `$expr` strings, where the JSON schema stops. It
+    // needs no schema fetch, so it is installed either way.
+    installExpressionCompletion();
   }, []);
   useEffect(() => {
+    setExpressionScope(inputs.vocabulary);
     if (schemas) applyEditorSchemas(inputs.vocabulary);
   }, [schemas, inputs.vocabulary]);
 
@@ -108,9 +114,41 @@ export function App() {
   // generation-guarded so a slow build cannot overwrite a newer one.
   const generation = useRef(0);
   const current = useRef<MilanoView | null>(null);
+  const built = useRef<BuildInputs | null>(null);
   useEffect(() => {
     const run = ++generation.current;
     const timer = setTimeout(() => {
+      // Only the document changed under a live view: replace it in place,
+      // the way a host refreshes a document, so the state the author put
+      // into the view survives the edit. A replacement that fails leaves
+      // the view as it was and shows why; anything else changing (the
+      // vocabulary, the data, the grants) is a new engine or surface, and
+      // a rebuild.
+      const previous = built.current;
+      const live = current.current;
+      if (
+        previous !== null &&
+        live !== null &&
+        previous.document !== inputs.document &&
+        previous.vocabulary === inputs.vocabulary &&
+        previous.context === inputs.context &&
+        previous.state === inputs.state &&
+        previous.actions === inputs.actions &&
+        previous.policy === inputs.policy
+      ) {
+        void live.replace(inputs.document).then(
+          () => {
+            if (run !== generation.current) return;
+            built.current = inputs;
+            setFailure(null);
+          },
+          (error: unknown) => {
+            if (run !== generation.current) return;
+            setFailure(describe(error));
+          },
+        );
+        return;
+      }
       const collected: Streamed = { occurrences: [], interactions: [], pending: [] };
       void build(inputs, {
         onOccurrence: (occurrence) => {
@@ -132,6 +170,7 @@ export function App() {
         // lifecycle it is demonstrating.
         current.current?.teardown();
         setStreamed({ ...collected, pending: [] });
+        built.current = inputs;
         if (!outcome.ok) {
           current.current = null;
           setView(null);
