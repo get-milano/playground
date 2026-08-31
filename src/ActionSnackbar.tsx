@@ -81,6 +81,22 @@ function PendingActionCard({
         {parameters.length === 0 ? "no parameters" : parameters}
         {` · dispatch ${pending.action.dispatch} (${pending.action.dispatchId})`}
       </Typography>
+      {pending.failureMembers === null ? null : (
+        <Stack direction="row" spacing={0.5} useFlexGap sx={{ mt: 1, flexWrap: "wrap", alignItems: "center" }}>
+          <Typography variant="caption" color="text.secondary">
+            fail with:
+          </Typography>
+          {pending.failureMembers.map((memberName) => (
+            <Chip
+              key={memberName}
+              size="small"
+              variant="outlined"
+              label={memberName}
+              onClick={() => settle(pending, "failure", memberName)}
+            />
+          ))}
+        </Stack>
+      )}
       <Stack direction="row" spacing={1} sx={{ mt: 1.5, alignItems: "center" }}>
         {expected.length === 0 ? null : (
           <TextField

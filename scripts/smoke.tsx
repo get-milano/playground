@@ -13,6 +13,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { build, type PendingAction } from "../src/engine";
 import { EXAMPLES } from "../src/samples";
 import { expressionSuggestions } from "../src/suggest";
+import { locateReference } from "../src/locate";
 
 async function main(): Promise<void> {
   let failures = 0;
@@ -57,6 +58,7 @@ async function main(): Promise<void> {
   }
 
   failures += suggestionCheck();
+  failures += locatorCheck();
 
   // Server rendering never mounts, so it cannot see what breaks on mount:
   // transitions, effects, refs. This mounts the interactive pieces in a
@@ -113,6 +115,45 @@ function suggestionCheck(): number {
   return 0;
 }
 
+/**
+ * The reference locator behind error markers and "show in document":
+ * id references, instance identities, and every branch a path can take.
+ * Wrong positions would be worse than none, so the expected text is
+ * asserted, not just non-nullness.
+ */
+function locatorCheck(): number {
+  const doc = (key: string): string =>
+    (EXAMPLES.find((entry) => entry.key === key) as (typeof EXAMPLES)[number]).document;
+  const cases: readonly [string, string, string | null][] = [
+    ["consent-banner", "consent", '"consent"'],
+    ["repeat-list", "rows[2]", '"rows"'],
+    ["repeat-list", "rows[abc]", '"rows"'],
+    ["conditional-branch", "root/children[1]/then[0]", '"Text"'],
+    ["conditional-branch", "root/children[1]/else[0]", '"Text"'],
+    ["switch-branch", "root/children[0]/cases[late][0]", '"Badge"'],
+    ["switch-branch", "root/children[0]/default[0]", '"Badge"'],
+    ["switch-branch", "root/children[0]", '"$switch"'],
+    ["switch-branch", "root", '"Column"'],
+    ["switch-branch", "root/children[9]", null],
+    ["consent-banner", "nonexistent-id", null],
+  ];
+  const problems: string[] = [];
+  for (const [key, reference, expected] of cases) {
+    const text = doc(key);
+    const range = locateReference(text, reference);
+    const found = range === null ? null : text.slice(range.start, range.end);
+    if (found !== expected) {
+      problems.push(`${key} ${reference}: located ${found ?? "null"}, wanted ${expected ?? "null"}`);
+    }
+  }
+  if (problems.length > 0) {
+    for (const problem of problems) console.error(`FAIL locate: ${problem}`);
+    return problems.length;
+  }
+  console.log(`ok   locate: ${cases.length} reference forms land on the node they name`);
+  return 0;
+}
+
 async function mountCheck(): Promise<number> {
   const dom = new JSDOM("<!doctype html><div id=\"root\"></div>", { pretendToBeVisual: true });
   const globals = globalThis as unknown as Record<string, unknown>;
@@ -156,6 +197,7 @@ async function mountCheck(): Promise<number> {
     },
     resultType: "string",
     failureType: null,
+    failureMembers: null,
     settle: () => {},
   };
 

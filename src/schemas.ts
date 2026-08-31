@@ -5,7 +5,7 @@
 // Strictly optional. The engine decides what is valid; this only makes
 // typing easier, so a failed schema fetch degrades autocomplete and
 // nothing else.
-import * as monaco from "monaco-editor";
+import { monaco } from "./monaco";
 
 import { deriveDocumentSchema, parseVocabulary } from "./derive";
 import { loadSpecs, type SpecBundle } from "./specs";

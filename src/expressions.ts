@@ -4,7 +4,7 @@
 //
 // Assistance only: the engine decides what is valid, and a pane that does
 // not parse simply offers fewer suggestions.
-import * as monaco from "monaco-editor";
+import { monaco } from "./monaco";
 
 import { expressionSuggestions, type Suggestion } from "./suggest";
 

@@ -36,6 +36,10 @@ export interface PendingAction {
   readonly resultType: string | null;
   /** The declared failure type, so the UI knows what a failure may carry. */
   readonly failureType: string | null;
+  /** The members, when the declared failure type is an enum: the UI can
+   *  offer them as one-tap failures, keeping free text for the
+   *  invalid-completion lesson. */
+  readonly failureMembers: readonly string[] | null;
   readonly settle: (outcome: "success" | "failure", value: string) => void;
 }
 
@@ -58,6 +62,9 @@ export interface Streams {
 export interface Failure {
   readonly headline: string;
   readonly detail: string;
+  /** The gate's node reference, when the error names one: the UI points
+   *  the editor at it rather than leaving the author to search. */
+  readonly node: string | null;
 }
 
 /**
@@ -195,6 +202,7 @@ export function describe(error: unknown): Failure {
       detail: [error.rule, error.detail, error.missing?.join(", ")]
         .filter((part) => part !== null && part !== undefined && part !== "")
         .join(" · "),
+      node: null,
     };
   }
   if (error instanceof MilanoBuildError) {
@@ -208,9 +216,9 @@ export function describe(error: unknown): Failure {
     if (error.actual !== null) parts.push(`actual: ${error.actual}`);
     if (error.declared !== null) parts.push(`declared: ${error.declared}`);
     if (error.detail !== null) parts.push(error.detail);
-    return { headline: `Gate rejects: ${error.type}`, detail: parts.join(" · ") };
+    return { headline: `Gate rejects: ${error.type}`, detail: parts.join(" · "), node: error.node };
   }
-  return { headline: "Could not build", detail: String(error) };
+  return { headline: "Could not build", detail: String(error), node: null };
 }
 
 /**
@@ -261,6 +269,10 @@ export async function build(inputs: BuildInputs, streams: Streams): Promise<Buil
             action,
             resultType: outcomes.result?.name ?? null,
             failureType: outcomes.failure?.name ?? null,
+            failureMembers:
+              outcomes.failure !== null && outcomes.failure.kind.kind === "enum"
+                ? [...outcomes.failure.kind.members].sort()
+                : null,
             settle(outcome, value) {
               const entered = value.trim();
               if (outcome === "failure") {
