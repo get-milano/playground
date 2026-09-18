@@ -496,6 +496,235 @@ const REPEAT_LIST: Example = {
   actions: `{}`
 };
 
+// What the host supplies to both quick-actions samples: one constant, so
+// "the same data under two documents" is true by construction.
+const QUICK_ACTIONS_CONTEXT = `{
+  "quickActions": [
+    {"id": "send", "label": "Send", "icon": "send", "url": "https://get-milano.dev/send"},
+    {"id": "scan", "label": "Scan", "icon": "scan", "url": "https://get-milano.dev/scan"},
+    {"id": "top-up", "label": "Top up", "icon": "topUp", "url": "https://get-milano.dev/top-up"},
+    {"id": "pay", "label": "Pay bills", "icon": "pay", "url": "https://get-milano.dev/pay"},
+    {"id": "history", "label": "History", "icon": "history", "url": "https://get-milano.dev/history"},
+    {"id": "more", "label": "More", "icon": "more", "url": "https://get-milano.dev/more"}
+  ]
+}`;
+
+// The experiment: the same context, entry for entry, and the same tiles,
+// with the first one highlighted. The vocabulary grows by one optional
+// property, `highlighted`, an additive change the original document never
+// notices; the document decides which tile gets it, by position
+// (`quickAction_index == 0`), so whatever entry the host lists first is
+// the one that stands out. Reorder the Context pane and the highlight
+// stays at the front.
+const QUICK_ACTIONS: Example = {
+  key: "quick-actions",
+  title: "Quick actions",
+  group: "Constructs and strings",
+  description:
+    "The Quick actions row with its first tile highlighted: same data, same tiles, one optional property the document sets from the element's position. Reorder the entries in the Context pane and the highlight stays on whichever comes first.",
+  docsUrl: "https://get-milano.dev/sdk/documents#lists-with-repeat",
+  vocabulary: `{
+  "milano": "2.1.0",
+  "name": "starter",
+  "version": "1.1.0",
+  "components": {
+    "Column": {"children": true},
+    "Row": {
+      "children": true,
+      "properties": {"spacing": "int?", "scroll": "bool?"}
+    },
+    "Text": {
+      "properties": {
+        "text": "string",
+        "role": {"enum": ["title", "subtitle", "body", "caption"], "optional": true}
+      }
+    },
+    "QuickAction": {
+      "properties": {
+        "icon": {"enum": ["send", "scan", "topUp", "pay", "history", "more"]},
+        "label": "string",
+        "enabled": "bool?",
+        "highlighted": "bool?"
+      },
+      "events": {"tap": null}
+    }
+  },
+  "actions": {
+    "openUrl": {"parameters": {"url": "string"}}
+  }
+}`,
+  document: `{
+  "version": "2.1.0",
+  "context": {
+    "quickActions": {
+      "array": {
+        "record": {
+          "id": "string",
+          "label": "string",
+          "icon": {"enum": ["send", "scan", "topUp", "pay", "history", "more"]},
+          "url": "string"
+        }
+      }
+    }
+  },
+  "root": {
+    "type": "Column",
+    "children": [
+      {"type": "Text", "properties": {"text": "Quick actions", "role": "title"}},
+      {
+        "type": "Row",
+        "id": "list",
+        "properties": {"spacing": 12, "scroll": true},
+        "children": [
+          {
+            "type": "$repeat",
+            "id": "actions",
+            "items": {"$expr": "context.quickActions"},
+            "as": "quickAction",
+            "key": {"$expr": "quickAction.id"},
+            "children": [
+              {
+                "type": "QuickAction",
+                "id": "tile",
+                "properties": {
+                  "icon": {"$expr": "quickAction.icon"},
+                  "label": {"$expr": "quickAction.label"},
+                  "highlighted": {"$expr": "quickAction_index == 0"}
+                },
+                "on": {
+                  "tap": [{"action": "openUrl", "url": {"$expr": "quickAction.url"}}]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}`,
+  context: QUICK_ACTIONS_CONTEXT,
+  state: `{}`,
+  actions: `{}`
+};
+
+// The second experiment changes the layout and the UI, not the data: a
+// two-column grid of tappable cards, each one composed in the document
+// from the design system's primitives (a Card holding a Row with an Icon
+// and the label) where the samples above lean on one QuickAction
+// component. The context, the declaration that reads it, and the action
+// are the ones the other two use; shipping this variant is shipping a
+// document.
+const QUICK_ACTIONS_2: Example = {
+  key: "quick-actions-2",
+  title: "Quick actions (2)",
+  group: "Constructs and strings",
+  description:
+    "The Quick actions data again, under another layout and UI: a two-column grid of tappable cards the document composes from Card, Row, Icon, and Text. The Context pane is identical to the other two samples; change columns in the document to regrid it.",
+  docsUrl: "https://get-milano.dev/sdk/documents#lists-with-repeat",
+  vocabulary: `{
+  "milano": "2.1.0",
+  "name": "starter",
+  "version": "1.2.0",
+  "components": {
+    "Column": {"children": true},
+    "Row": {
+      "children": true,
+      "properties": {"spacing": "int?", "scroll": "bool?"}
+    },
+    "Grid": {
+      "children": true,
+      "properties": {"columns": "int?", "spacing": "int?"}
+    },
+    "Text": {
+      "properties": {
+        "text": "string",
+        "role": {"enum": ["title", "subtitle", "body", "caption"], "optional": true}
+      }
+    },
+    "Icon": {
+      "properties": {
+        "name": {"enum": ["send", "scan", "topUp", "pay", "history", "more"]},
+        "size": "int?"
+      }
+    },
+    "Card": {
+      "children": true,
+      "properties": {
+        "cornerRadius": "int?",
+        "padding": "int?",
+        "accessibilityLabel": "string?"
+      },
+      "events": {"tap": null}
+    }
+  },
+  "actions": {
+    "openUrl": {"parameters": {"url": "string"}}
+  }
+}`,
+  document: `{
+  "version": "2.1.0",
+  "context": {
+    "quickActions": {
+      "array": {
+        "record": {
+          "id": "string",
+          "label": "string",
+          "icon": {"enum": ["send", "scan", "topUp", "pay", "history", "more"]},
+          "url": "string"
+        }
+      }
+    }
+  },
+  "root": {
+    "type": "Column",
+    "children": [
+      {"type": "Text", "properties": {"text": "Quick actions", "role": "title"}},
+      {
+        "type": "Grid",
+        "id": "grid",
+        "properties": {"columns": 2, "spacing": 10},
+        "children": [
+          {
+            "type": "$repeat",
+            "id": "actions",
+            "items": {"$expr": "context.quickActions"},
+            "as": "quickAction",
+            "key": {"$expr": "quickAction.id"},
+            "children": [
+              {
+                "type": "Card",
+                "id": "entry",
+                "properties": {
+                  "cornerRadius": 14,
+                  "padding": 14,
+                  "accessibilityLabel": {"$expr": "quickAction.label"}
+                },
+                "on": {
+                  "tap": [{"action": "openUrl", "url": {"$expr": "quickAction.url"}}]
+                },
+                "children": [
+                  {
+                    "type": "Row",
+                    "properties": {"spacing": 12},
+                    "children": [
+                      {"type": "Icon", "properties": {"name": {"$expr": "quickAction.icon"}, "size": 28}},
+                      {"type": "Text", "properties": {"text": {"$expr": "quickAction.label"}}}
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}`,
+  context: QUICK_ACTIONS_CONTEXT,
+  state: `{}`,
+  actions: `{}`
+};
+
 // Lifecycle bindings and the numeric functions, in one small calculator.
 // The document's top-level `on` dispatches `track` when the view comes on
 // screen and when it leaves (the snackbar shows the dispatch, with no
@@ -923,6 +1152,8 @@ export const EXAMPLES: Example[] = [
   CONTACT_FORM,
   GUARDRAILS,
   REPEAT_LIST,
+  QUICK_ACTIONS,
+  QUICK_ACTIONS_2,
   CONDITIONAL_BRANCH,
   SWITCH_BRANCH,
   MASKED_CARD,

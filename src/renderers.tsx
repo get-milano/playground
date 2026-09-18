@@ -15,9 +15,16 @@ import type {
   MilanoReactRegistry,
   MilanoRenderer,
 } from "@get-milano/react";
+import AddCardIcon from "@mui/icons-material/AddCard";
+import HistoryIcon from "@mui/icons-material/History";
+import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
+import PaymentsIcon from "@mui/icons-material/Payments";
+import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
+import SendIcon from "@mui/icons-material/Send";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import ButtonBase from "@mui/material/ButtonBase";
 import Card from "@mui/material/Card";
 import CardActionArea from "@mui/material/CardActionArea";
 import Checkbox from "@mui/material/Checkbox";
@@ -72,19 +79,39 @@ const JUSTIFY: Record<string, string> = {
   spaceBetween: "space-between",
 };
 
-const Row: MilanoRenderer = ({ node }) => (
-  <Stack
+const Row: MilanoRenderer = ({ node }) => {
+  // A scrolling row is a horizontal list: it keeps one line and overflows
+  // sideways, where the default row wraps onto the next line.
+  const scroll = flag(node, "scroll", false);
+  return (
+    <Stack
+      {...refTag(node)}
+      direction="row"
+      spacing={`${integer(node, "spacing", 8)}px`}
+      sx={{
+        alignItems: scroll ? "flex-start" : "center",
+        flexWrap: scroll ? "nowrap" : "wrap",
+        overflowX: scroll ? "auto" : undefined,
+        justifyContent: JUSTIFY[member(node, "justify", "start")] ?? "flex-start",
+      }}
+    >
+      {node.children}
+    </Stack>
+  );
+};
+
+/** Equal columns; children fill them in order, row after row. */
+const Grid: MilanoRenderer = ({ node }) => (
+  <Box
     {...refTag(node)}
-    direction="row"
-    spacing={`${integer(node, "spacing", 8)}px`}
     sx={{
-      alignItems: "center",
-      flexWrap: "wrap",
-      justifyContent: JUSTIFY[member(node, "justify", "start")] ?? "flex-start",
+      display: "grid",
+      gridTemplateColumns: `repeat(${Math.max(1, integer(node, "columns", 2))}, minmax(0, 1fr))`,
+      gap: `${integer(node, "spacing", 8)}px`,
     }}
   >
     {node.children}
-  </Stack>
+  </Box>
 );
 
 const Text: MilanoRenderer = ({ node }) => {
@@ -304,6 +331,83 @@ const ImageRenderer: MilanoRenderer = ({ node }) => {
   );
 };
 
+const QUICK_ACTION_ICONS = {
+  send: SendIcon,
+  scan: QrCodeScannerIcon,
+  topUp: AddCardIcon,
+  pay: PaymentsIcon,
+  history: HistoryIcon,
+  more: MoreHorizIcon,
+} as const;
+
+/** A decorative glyph from the same table; whatever sits beside it names it. */
+const IconRenderer: MilanoRenderer = ({ node }) => {
+  const Icon = QUICK_ACTION_ICONS[member<keyof typeof QUICK_ACTION_ICONS>(node, "name", "more")] ?? MoreHorizIcon;
+  return (
+    <Icon
+      {...refTag(node)}
+      aria-hidden
+      sx={{ fontSize: integer(node, "size", 24), color: "primary.main", flexShrink: 0 }}
+    />
+  );
+};
+
+/**
+ * A rounded square with a centered icon and its label below, one tap
+ * target for both. The icon is a declared enum, so data naming an icon
+ * this table lacks is refused at the gate, never drawn as a blank tile.
+ * `highlighted` fills the square with the primary color.
+ */
+const QuickAction: MilanoRenderer = ({ node }) => {
+  const Icon = QUICK_ACTION_ICONS[member<keyof typeof QUICK_ACTION_ICONS>(node, "icon", "more")] ?? MoreHorizIcon;
+  const size = integer(node, "size", 64);
+  // The highlighted tile is filled where the others are tinted: the one
+  // the document wants seen first.
+  const highlighted = flag(node, "highlighted", false);
+  return (
+    <ButtonBase
+      {...refTag(node)}
+      disabled={!flag(node, "enabled", true)}
+      onClick={() => node.emit("tap")}
+      sx={{
+        flexDirection: "column",
+        flexShrink: 0,
+        gap: 0.75,
+        width: size + 8,
+        borderRadius: `${integer(node, "cornerRadius", 16)}px`,
+        "&.Mui-disabled": { opacity: 0.4 },
+        "&:hover .quick-action-tile, &.Mui-focusVisible .quick-action-tile": {
+          backgroundColor: highlighted ? "primary.dark" : "action.selected",
+        },
+      }}
+    >
+      <Box
+        className="quick-action-tile"
+        sx={{
+          width: size,
+          height: size,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: `${integer(node, "cornerRadius", 16)}px`,
+          backgroundColor: highlighted ? "primary.main" : "action.hover",
+          color: highlighted ? "primary.contrastText" : "primary.main",
+          transition: "background-color 120ms",
+        }}
+      >
+        <Icon fontSize="medium" />
+      </Box>
+      <Typography
+        variant="caption"
+        color={highlighted ? "primary.main" : "text.primary"}
+        sx={{ textAlign: "center", lineHeight: 1.2, fontWeight: highlighted ? 600 : undefined }}
+      >
+        {text(node, "label")}
+      </Typography>
+    </ButtonBase>
+  );
+};
+
 const BADGE_TONES = {
   info: "info",
   success: "success",
@@ -394,6 +498,7 @@ function generic(
 export const RENDERERS: Readonly<Record<string, MilanoRenderer>> = {
   Column,
   Row,
+  Grid,
   Stack: Column,
   Text,
   Label: Text,
@@ -406,6 +511,8 @@ export const RENDERERS: Readonly<Record<string, MilanoRenderer>> = {
   Banner,
   Card: CardRenderer,
   Image: ImageRenderer,
+  Icon: IconRenderer,
+  QuickAction,
   Badge,
   Chip: Badge,
 };
